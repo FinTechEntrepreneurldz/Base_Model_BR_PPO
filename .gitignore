@@ -17,9 +17,9 @@ venv/
 env/
 
 # Model artifacts (downloaded at runtime — never commit these)
-artifacts/*.zip
-artifacts/*.pt
-artifacts/*.pkl
+
+
+
 # Keep metadata in repo for reference:
 # artifacts/*.json  ← committed
 
