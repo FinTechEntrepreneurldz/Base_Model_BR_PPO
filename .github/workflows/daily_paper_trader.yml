@@ -20,6 +20,9 @@ on:
 permissions:
   contents: write              # Needed to commit logs back to the repo
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Use Node.js 24 for all actions
+
 jobs:
   trade:
     name: BR-PPO Paper Trade
