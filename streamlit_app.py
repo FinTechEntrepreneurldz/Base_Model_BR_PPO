@@ -497,7 +497,7 @@ with tab_perf:
                 mode="lines",
                 fill="tozeroy",
                 line=dict(color=PALETTE["red"], width=1.5),
-                fillcolor=f"{PALETTE['red']}25",
+                fillcolor=hex_to_rgba(PALETTE["red"], 0.15),
                 hovertemplate="%{y:.2f}%<br>%{x}<extra></extra>",
             ))
             fig2.update_layout(
