@@ -1,14 +1,9 @@
 name: Daily Paper Trader
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Runs every weekday at 13:00 UTC  (9:00 AM ET summer / 8:00 AM ET winter)
-# — always well before the 9:30 AM ET market open, so orders queue at the bell.
-# ──────────────────────────────────────────────────────────────────────────────
-
 on:
   schedule:
-    - cron: "0 13 * * 1-5"   # Mon–Fri 13:00 UTC
-  workflow_dispatch:           # Allow manual trigger from GitHub UI
+    - cron: "0 13 * * 1-5"   # Mon–Fri 13:00 UTC = 9:00 AM ET
+  workflow_dispatch:
     inputs:
       dry_run:
         description: "Dry run (do NOT submit orders)"
@@ -18,10 +13,10 @@ on:
         options: ["true", "false"]
 
 permissions:
-  contents: write              # Needed to commit logs back to the repo
+  contents: write
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Use Node.js 24 for all actions
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   trade:
@@ -30,62 +25,43 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}   # PAT so we can push logs back
+          token: ${{ secrets.GH_PAT }}
           fetch-depth: 1
 
-      # ── 2. Python ────────────────────────────────────────────────────────────
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ── 3. Cache pip ─────────────────────────────────────────────────────────
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          restore-keys: ${{ runner.os }}-pip-
 
-      # ── 4. Install dependencies ───────────────────────────────────────────────
       - name: Install dependencies
         run: pip install -q -r requirements.txt
 
-      # ── 5. Market holiday check ───────────────────────────────────────────────
       - name: Check if today is a trading day
         id: market_check
-        run: |
-          python scripts/market_check.py --info
-          echo "is_trading_day=$?" >> "$GITHUB_OUTPUT"
-        continue-on-error: true   # Script exits 1 on holidays; we handle below
+        run: python scripts/market_check.py --info
+        continue-on-error: true
 
       - name: Skip on non-trading day
-        if: steps.market_check.outputs.is_trading_day == '1'
+        if: steps.market_check.outcome == 'failure'
         run: |
           echo "Today is not a NYSE trading day. Skipping."
           exit 0
 
-      # ── 6. Download model from Google Drive ───────────────────────────────────
-      - name: Download PPO model artifacts
-        env:
-          GDRIVE_MODEL_FILE_ID:    ${{ secrets.GDRIVE_MODEL_FILE_ID }}
-          GDRIVE_METADATA_FILE_ID: ${{ secrets.GDRIVE_METADATA_FILE_ID }}
-        run: python scripts/download_model.py
-
-      # ── 7. Run paper trader ───────────────────────────────────────────────────
       - name: Run BR-PPO paper trader
         env:
-          # Alpaca credentials
-          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-          ALPACA_PAPER:      "True"
-
-          # Trading config
+          ALPACA_API_KEY:                   ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY:                ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_PAPER:                     "True"
           BRPPO_SUBMIT_ORDERS:              ${{ github.event.inputs.dry_run == 'true' && 'False' || 'True' }}
           BRPPO_PROJECT_ROOT:               "."
           BRPPO_MODEL_PATH:                 "./artifacts/v10_bro_ppo_allocation_agent.zip"
@@ -99,26 +75,18 @@ jobs:
           BRPPO_V6_MAX_NAMES:               "30"
         run: python paper_trader.py
 
-      # ── 8. Commit logs back to repo ───────────────────────────────────────────
       - name: Commit trading logs
         run: |
           git config user.name  "BR-PPO Trader Bot"
           git config user.email "bot@brppo-trading.local"
-
-          # Stage all log CSV files
           git add logs/
-
-          # Only commit if there are actual changes
           if git diff --staged --quiet; then
             echo "No log changes to commit."
           else
-            RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-            git commit -m "📊 Trading log — ${RUN_DATE}"
+            git commit -m "📊 Trading log — $(date -u '+%Y-%m-%d %H:%M UTC')"
             git push
-            echo "✓ Logs committed and pushed."
           fi
 
-      # ── 9. Upload logs as workflow artifact (backup) ──────────────────────────
       - name: Upload logs artifact
         if: always()
         uses: actions/upload-artifact@v4
