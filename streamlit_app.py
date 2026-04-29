@@ -165,6 +165,12 @@ def fmt_pct(v):
     try: return f"{float(v)*100:.2f}%"
     except: return "—"
 
+def hex_to_rgba(hex_color, alpha=0.08):
+    """Convert #rrggbb hex to rgba() string for Plotly fillcolor."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 def metric_card(label, value, delta=None, delta_sign=None):
     """delta_sign: 'pos', 'neg', 'neu', or None"""
     delta_html = ""
@@ -246,6 +252,12 @@ with st.sidebar:
         latest_action = dec["action"].iloc[-1]
         st.markdown(f"**Current action:** `{latest_action}`")
 
+    # Run count
+    dec_hist = data["decisions"]
+    if not dec_hist.empty:
+        n_runs = len(dec_hist)
+        st.markdown(f"**Total runs:** {n_runs}")
+
     st.markdown("---")
     st.caption("Auto-refreshes every 2 min\nLogs committed by GitHub Actions daily")
 
@@ -295,7 +307,9 @@ with tab_overview:
 
     with c2:
         action = str(latest.get("action", "—"))
-        metric_card("Today's Action", action)
+        last   = str(latest.get("last_action", "—"))
+        delta  = f"prev: {last}" if last != "—" and last != action else ("same as previous" if last == action and last != "—" else "first run")
+        metric_card("Today's Action", action, delta=delta, delta_sign="neu")
 
     with c3:
         n_pos = int(latest.get("n_target_positions", 0))
@@ -356,7 +370,7 @@ with tab_overview:
                 mode="lines",
                 line=dict(color=line_color, width=2.5),
                 fill="tozeroy",
-                fillcolor=f"{line_color}18",
+                fillcolor=hex_to_rgba(line_color, 0.09),
                 hovertemplate="$%{y:,.2f}<br>%{x}<extra></extra>",
             ))
             fig.update_layout(
@@ -442,7 +456,7 @@ with tab_perf:
             x=x_vals, y=y_vals,
             mode="lines+markers",
             line=dict(color=color, width=2),
-            fill="tozeroy", fillcolor=f"{color}18",
+            fill="tozeroy", fillcolor=hex_to_rgba(color, 0.09),
             marker=dict(size=4, color=color),
             name="Portfolio Value",
             hovertemplate="$%{y:,.2f}<br>%{x}<extra></extra>",
