@@ -169,8 +169,8 @@ def main():
 
     # ---- Final display ----
     target_df       = _normalize_target_weights(result.get("target_weights"))
-    order_plan      = result.get("order_plan")      or pd.DataFrame()
-    submitted_orders = result.get("submitted_orders") or pd.DataFrame()
+    order_plan = result.get("order_plan"); order_plan = pd.DataFrame() if order_plan is None else order_plan
+    submitted_orders = result.get("submitted_orders"); submitted_orders = pd.DataFrame() if submitted_orders is None else submitted_orders
 
     print("\n" + "=" * 70)
     print("BR-PPO ALPACA PAPER TRADER COMPLETE")
