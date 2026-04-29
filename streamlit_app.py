@@ -879,9 +879,9 @@ with tab_health:
         dec_sorted["entropy_21d"] = entropy_vals
 
         fig_ent = go.Figure()
-        fig_ent.add_hrect(y0=0, y1=0.3,  fillcolor="#ff4b6e", opacity=0.05, line_width=0)
-        fig_ent.add_hrect(y0=0.3, y1=0.6, fillcolor="#ffd166", opacity=0.05, line_width=0)
-        fig_ent.add_hrect(y0=0.6, y1=1.0, fillcolor="#00d4aa", opacity=0.05, line_width=0)
+        fig_ent.add_hrect(y0=0, y1=0.3,  fillcolor="rgba(255,75,110,0.06)",   line_width=0)
+        fig_ent.add_hrect(y0=0.3, y1=0.6, fillcolor="rgba(255,209,102,0.06)", line_width=0)
+        fig_ent.add_hrect(y0=0.6, y1=1.0, fillcolor="rgba(0,212,170,0.06)",   line_width=0)
         fig_ent.add_hline(y=0.3, line_dash="dot", line_color="#ff4b6e", annotation_text="Degraded", annotation_position="right")
         fig_ent.add_hline(y=0.6, line_dash="dot", line_color="#ffd166", annotation_text="Warning",  annotation_position="right")
         fig_ent.add_trace(go.Scatter(
