@@ -1,2 +1,2 @@
 symbol,current_weight,target_weight,delta_weight,notional,side,submitted,order_id,status
-RSP,0.0,0.98,0.98,980000.0,buy,True,8e5c237d-8dd8-4c6a-aa55-15b869bdef1b,OrderStatus.ACCEPTED
+RSP,0.0,0.98,0.98,980000.0,buy,True,31be91ec-8b0e-49ee-8922-35ec66375258,OrderStatus.PENDING_NEW
