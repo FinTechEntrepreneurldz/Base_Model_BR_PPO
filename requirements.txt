@@ -1,0 +1,24 @@
+# BR-PPO Paper Trading System — Dependencies
+# Install: pip install -r requirements.txt
+
+# ── Core trading ──────────────────────────────────────────────
+alpaca-py>=0.20.0
+stable-baselines3>=2.3.0
+gymnasium>=0.29.0
+
+# ── Data ─────────────────────────────────────────────────────
+yfinance>=0.2.40
+pandas>=2.0.0
+numpy>=1.26.0
+
+# ── Utilities ────────────────────────────────────────────────
+python-dotenv>=1.0.0
+gdown>=5.1.0
+
+# ── Market calendar ──────────────────────────────────────────
+pandas-market-calendars>=4.3.0
+pytz>=2024.1
+
+# ── Dashboard ────────────────────────────────────────────────
+streamlit>=1.35.0
+plotly>=5.20.0
