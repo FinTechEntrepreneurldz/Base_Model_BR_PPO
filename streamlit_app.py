@@ -6,6 +6,7 @@ Streamlit Cloud deployment — reads committed log CSVs from the repo.
 import streamlit as st
 import pandas as pd
 import numpy as np
+import math
 import plotly.graph_objects as go
 import plotly.express as px
 from pathlib import Path
@@ -136,7 +137,20 @@ def load_all():
         "planned_orders":   load_csv(LOG_DIR / "orders"          / "latest_planned_orders.csv"),
         "submitted_orders": load_csv(LOG_DIR / "orders"          / "latest_submitted_orders.csv"),
         "orders_history":   load_csv(LOG_DIR / "orders"          / "submitted_orders.csv"),
+        "signal_history":   load_csv(LOG_DIR / "health"          / "signal_history.csv"),
+        "health_status":    _load_health_status(),
     }
+
+
+def _load_health_status():
+    path = LOG_DIR / "health" / "health_status.json"
+    if not path.exists():
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -249,12 +263,13 @@ st.markdown("---")
 # Tabs
 # ──────────────────────────────────────────────────────────────────────────────
 
-tab_overview, tab_perf, tab_portfolio, tab_orders, tab_history = st.tabs([
+tab_overview, tab_perf, tab_portfolio, tab_orders, tab_history, tab_health = st.tabs([
     "🏠 Overview",
     "📊 Performance",
     "🎯 Portfolio",
     "📋 Orders",
     "📜 History",
+    "🧠 Model Health",
 ])
 
 
@@ -704,3 +719,260 @@ with tab_history:
             hide_index=True,
             use_container_width=True,
         )
+
+
+# ════════════════════════════════════════════════════════════════
+# TAB 6: MODEL HEALTH
+# ════════════════════════════════════════════════════════════════
+
+with tab_health:
+    health   = data.get("health_status", {})
+    sig_hist = data.get("signal_history", pd.DataFrame())
+    dec_all  = data.get("decisions", pd.DataFrame())
+    port_all = data.get("portfolio", pd.DataFrame())
+
+    # ── Header status banner ──
+    overall = health.get("overall_status", "unknown")
+    status_colors = {"healthy": "#00d4aa", "warning": "#ffd166", "degraded": "#ff4b6e", "unknown": "#8892a4"}
+    status_icons  = {"healthy": "✅", "warning": "⚠️", "degraded": "🚨", "unknown": "❓"}
+    sc = status_colors.get(overall, "#8892a4")
+    si = status_icons.get(overall, "❓")
+
+    st.markdown(f"""
+    <div style="background:{sc}22; border:2px solid {sc}; border-radius:12px; padding:20px 24px; margin-bottom:20px;">
+        <span style="font-size:24px; font-weight:700; color:{sc};">{si} Model Status: {overall.upper()}</span>
+        <div style="color:#8892a4; font-size:13px; margin-top:6px;">
+            Last checked: {health.get('computed_at', 'Never')[:19].replace('T',' ')} UTC
+            &nbsp;|&nbsp; Lookback: {health.get('lookback_days', 63)} days
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Alerts ──
+    alerts = health.get("alerts", [])
+    if alerts:
+        for alert in alerts:
+            st.warning(alert)
+    elif overall == "healthy":
+        st.success("No alerts. The model is performing as expected.")
+
+    if health.get("training_recommended"):
+        st.error("🔁 **Retraining recommended.** See the 'Retrain' section below for instructions.")
+
+    st.markdown("---")
+
+    # ── KPI row ──
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        ent = health.get("action_entropy")
+        ent_str = f"{ent:.3f}" if ent is not None else "—"
+        color = "#00d4aa" if (ent or 0) > 0.5 else ("#ffd166" if (ent or 0) > 0.3 else "#ff4b6e")
+        metric_card("Action Entropy", ent_str, "1.0 = fully diverse, 0 = locked in", "pos" if (ent or 0) > 0.5 else "neg")
+
+    with c2:
+        n_unique = health.get("n_unique_actions", 0)
+        n_dec    = health.get("n_decisions", 0)
+        metric_card("Unique Actions Used", str(n_unique), f"out of last {n_dec} decisions", "pos" if n_unique > 3 else "neg")
+
+    with c3:
+        p_sh = health.get("portfolio_sharpe_30d")
+        b_sh = health.get("spy_sharpe_30d")
+        if p_sh is not None and b_sh is not None:
+            gap = p_sh - b_sh
+            metric_card("Sharpe vs SPY (30d)", f"{p_sh:.2f}", f"SPY: {b_sh:.2f} | gap: {gap:+.2f}", "pos" if gap > -0.3 else "neg")
+        else:
+            metric_card("Sharpe vs SPY (30d)", "—", "Insufficient data", "neu")
+
+    with c4:
+        p_ret = health.get("portfolio_return_30d")
+        b_ret = health.get("spy_return_30d")
+        if p_ret is not None and b_ret is not None:
+            gap = p_ret - b_ret
+            metric_card("Return vs SPY (30d)", f"{p_ret*100:.1f}%", f"SPY: {b_ret*100:.1f}% | gap: {gap*100:+.1f}%", "pos" if gap > -0.05 else "neg")
+        else:
+            metric_card("Return vs SPY (30d)", "—", "Insufficient data", "neu")
+
+    st.markdown("---")
+
+    # ── Action distribution ──
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.markdown('<div class="section-header">Action Distribution (All Time)</div>', unsafe_allow_html=True)
+        action_counts = health.get("action_counts", {})
+
+        if action_counts and not dec_all.empty and "action" in dec_all.columns:
+            all_counts = dec_all["action"].value_counts().to_dict()
+            fig_pie = go.Figure(go.Pie(
+                labels=list(all_counts.keys()),
+                values=list(all_counts.values()),
+                hole=0.45,
+                marker=dict(colors=[ACTION_COLORS.get(a, "#8892a4") for a in all_counts.keys()]),
+                textinfo="label+percent",
+                textfont=dict(size=12, color="#e8eaf0"),
+            ))
+            fig_pie.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e8eaf0"),
+                showlegend=False,
+                margin=dict(t=10, b=10, l=10, r=10),
+                height=280,
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("No action data yet.")
+
+    with col_right:
+        st.markdown('<div class="section-header">Action Over Time</div>', unsafe_allow_html=True)
+        if not dec_all.empty and "action" in dec_all.columns and "timestamp_utc" in dec_all.columns:
+            dec_plot = dec_all.copy()
+            dec_plot["timestamp_utc"] = pd.to_datetime(dec_plot["timestamp_utc"], utc=True)
+            dec_plot = dec_plot.sort_values("timestamp_utc").tail(120)
+
+            fig_act = go.Figure()
+            for action_name in dec_plot["action"].unique():
+                mask = dec_plot["action"] == action_name
+                col  = ACTION_COLORS.get(action_name, "#8892a4")
+                fig_act.add_trace(go.Scatter(
+                    x=dec_plot.loc[mask, "timestamp_utc"],
+                    y=dec_plot.loc[mask, "action"],
+                    mode="markers",
+                    name=action_name,
+                    marker=dict(color=col, size=10, symbol="circle"),
+                ))
+            fig_act.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="#12161f",
+                font=dict(color="#e8eaf0"),
+                xaxis=dict(gridcolor="#1e2535", title="Date"),
+                yaxis=dict(gridcolor="#1e2535", title="Action", automargin=True),
+                showlegend=False,
+                margin=dict(t=10, b=10, l=10, r=10),
+                height=280,
+            )
+            st.plotly_chart(fig_act, use_container_width=True)
+        else:
+            st.info("No action history yet.")
+
+    st.markdown("---")
+
+    # ── Rolling entropy trend ──
+    st.markdown('<div class="section-header">Rolling Action Entropy (21-day window)</div>', unsafe_allow_html=True)
+    if not dec_all.empty and "action" in dec_all.columns and "timestamp_utc" in dec_all.columns:
+        dec_sorted = dec_all.copy()
+        dec_sorted["timestamp_utc"] = pd.to_datetime(dec_sorted["timestamp_utc"], utc=True)
+        dec_sorted = dec_sorted.sort_values("timestamp_utc").reset_index(drop=True)
+
+        window = 21
+        entropy_vals = []
+        for i in range(len(dec_sorted)):
+            start = max(0, i - window + 1)
+            window_actions = dec_sorted["action"].iloc[start:i+1]
+            counts = window_actions.value_counts().values
+            p = counts / counts.sum()
+            H = -float(np.sum(p * np.log(p + 1e-12)))
+            H_max = math.log(max(len(counts), 2))
+            entropy_vals.append(H / H_max if H_max > 0 else 0.0)
+
+        dec_sorted["entropy_21d"] = entropy_vals
+
+        fig_ent = go.Figure()
+        fig_ent.add_hrect(y0=0, y1=0.3,  fillcolor="#ff4b6e", opacity=0.05, line_width=0)
+        fig_ent.add_hrect(y0=0.3, y1=0.6, fillcolor="#ffd166", opacity=0.05, line_width=0)
+        fig_ent.add_hrect(y0=0.6, y1=1.0, fillcolor="#00d4aa", opacity=0.05, line_width=0)
+        fig_ent.add_hline(y=0.3, line_dash="dot", line_color="#ff4b6e", annotation_text="Degraded", annotation_position="right")
+        fig_ent.add_hline(y=0.6, line_dash="dot", line_color="#ffd166", annotation_text="Warning",  annotation_position="right")
+        fig_ent.add_trace(go.Scatter(
+            x=dec_sorted["timestamp_utc"],
+            y=dec_sorted["entropy_21d"],
+            mode="lines",
+            line=dict(color="#4c9eff", width=2),
+            name="Entropy",
+        ))
+        fig_ent.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#12161f",
+            font=dict(color="#e8eaf0"),
+            xaxis=dict(gridcolor="#1e2535"),
+            yaxis=dict(gridcolor="#1e2535", range=[0, 1], title="Entropy (0–1)"),
+            margin=dict(t=10, b=10, l=10, r=40),
+            height=220,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_ent, use_container_width=True)
+    else:
+        st.info("Need decision history to compute rolling entropy.")
+
+    # ── Portfolio vs SPY ──
+    st.markdown("---")
+    st.markdown('<div class="section-header">Portfolio Value vs SPY (normalised)</div>', unsafe_allow_html=True)
+
+    if not port_all.empty and "portfolio_value" in port_all.columns and "timestamp_utc" in port_all.columns:
+        port_plot = port_all.copy()
+        port_plot["timestamp_utc"] = pd.to_datetime(port_plot["timestamp_utc"], utc=True)
+        port_plot = port_plot.sort_values("timestamp_utc").drop_duplicates("timestamp_utc")
+        port_plot = port_plot.set_index("timestamp_utc")["portfolio_value"].astype(float)
+        port_norm = port_plot / port_plot.iloc[0]
+
+        try:
+            import yfinance as yf
+            spy_data = yf.download("SPY", start=port_plot.index[0].strftime("%Y-%m-%d"), auto_adjust=True, progress=False)
+            spy_close = spy_data["Close"] if "Close" in spy_data.columns else spy_data.iloc[:, 0]
+            spy_close.index = pd.to_datetime(spy_close.index, utc=True)
+            spy_norm = spy_close / spy_close.iloc[0]
+            has_spy = True
+        except Exception:
+            has_spy = False
+
+        fig_pv = go.Figure()
+        fig_pv.add_trace(go.Scatter(
+            x=port_norm.index, y=port_norm.values,
+            name="Portfolio", line=dict(color="#4c9eff", width=2),
+        ))
+        if has_spy:
+            spy_reindexed = spy_norm.reindex(port_norm.index, method="ffill")
+            fig_pv.add_trace(go.Scatter(
+                x=spy_reindexed.index, y=spy_reindexed.values,
+                name="SPY", line=dict(color="#ffd166", width=2, dash="dash"),
+            ))
+        fig_pv.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#12161f",
+            font=dict(color="#e8eaf0"),
+            xaxis=dict(gridcolor="#1e2535"),
+            yaxis=dict(gridcolor="#1e2535", title="Normalised value"),
+            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#e8eaf0")),
+            margin=dict(t=10, b=10, l=10, r=10),
+            height=280,
+        )
+        st.plotly_chart(fig_pv, use_container_width=True)
+    else:
+        st.info("No portfolio value history yet.")
+
+    # ── Retraining guide ──
+    st.markdown("---")
+    with st.expander("🔁 When and how to retrain", expanded=health.get("training_recommended", False)):
+        st.markdown("""
+**Retrain when you see any of these:**
+- 🚨 Model status is **DEGRADED** (action lock-in or sustained underperformance)
+- ⚠️ Action entropy stays below 0.3 for several weeks
+- ⚠️ Portfolio trails SPY by >15% over a 30-day period
+- 📅 **Quarterly schedule** (Jan, Apr, Jul, Oct) — regardless of metrics
+
+**How to retrain:**
+1. Open the Colab notebook: `vision_ichimoku_agentic.py`
+2. Run **all cells through V10B** (the BR-PPO tuning section)
+3. The trained model is saved as `v10_bro_ppo_allocation_agent.zip`
+4. Download it and replace `artifacts/v10_bro_ppo_allocation_agent.zip` in this repo
+5. Also replace `artifacts/v10_bro_ppo_allocation_agent_metadata.json`
+6. Commit and push — the daily workflow picks up the new model automatically
+
+> **GPU tip:** The vision embeddings (V6 cells) need a T4 GPU. Use Google Colab Pro or a cloud GPU instance.
+> The PPO retraining alone (V10B cells only) can run on CPU in ~30 minutes if your cached alpha scores exist.
+""")
+
+    st.markdown("---")
+    st.caption(f"Health check runs weekly (Fridays) and quarterly. Last computed: {health.get('computed_at', 'Never')[:19].replace('T', ' ')} UTC")
+

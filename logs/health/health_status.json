@@ -1,0 +1,21 @@
+{
+  "computed_at": "2026-04-29T11:40:40.011049+00:00",
+  "lookback_days": 63,
+  "overall_status": "unknown",
+  "alerts": [
+    "No health check has run yet. The first check will run on the next Friday or quarterly date."
+  ],
+  "metrics": {},
+  "action_counts": {},
+  "action_entropy": null,
+  "portfolio_sharpe_30d": null,
+  "spy_sharpe_30d": null,
+  "portfolio_return_30d": null,
+  "spy_return_30d": null,
+  "n_decisions": 0,
+  "n_unique_actions": 0,
+  "top_action": null,
+  "top_action_pct": null,
+  "days_since_last_run": null,
+  "training_recommended": false
+}

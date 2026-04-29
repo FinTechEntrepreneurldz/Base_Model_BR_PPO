@@ -1,0 +1,174 @@
+name: Quarterly Retrain Check
+
+on:
+  # First trading day of each quarter (roughly)
+  schedule:
+    - cron: '0 14 2 1 *'    # Jan  2, 14:00 UTC
+    - cron: '0 14 1 4 *'    # Apr  1, 14:00 UTC
+    - cron: '0 14 1 7 *'    # Jul  1, 14:00 UTC
+    - cron: '0 14 1 10 *'   # Oct  1, 14:00 UTC
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      force_issue:
+        description: "Force create retraining issue even if model is healthy"
+        required: false
+        default: "false"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  quarterly_check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -q yfinance pandas numpy
+
+      - name: Run signal monitor (full 90-day lookback)
+        id: monitor
+        run: |
+          python scripts/signal_monitor.py --days 90 2>&1 | tee quarterly_health.txt
+          if [ -f logs/health/health_status.json ]; then
+            STATUS=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print(d.get('overall_status','unknown'))")
+          else
+            STATUS="unknown"
+          fi
+          echo "health_status=$STATUS" >> $GITHUB_OUTPUT
+          exit 0
+
+      - name: Create quarterly retraining issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            const fs = require('fs');
+            let healthData = {};
+            try {
+              healthData = JSON.parse(fs.readFileSync('logs/health/health_status.json', 'utf8'));
+            } catch(e) {}
+
+            const status     = healthData.overall_status || 'unknown';
+            const entropy    = healthData.action_entropy != null ? healthData.action_entropy.toFixed(3) : 'N/A';
+            const pRet       = healthData.portfolio_return_30d != null ? (healthData.portfolio_return_30d * 100).toFixed(1) + '%' : 'N/A';
+            const sRet       = healthData.spy_return_30d != null ? (healthData.spy_return_30d * 100).toFixed(1) + '%' : 'N/A';
+            const alerts     = (healthData.alerts || []).map(a => `- ⚠️ ${a}`).join('\n') || '_(none)_';
+            const forceIssue = '${{ github.event.inputs.force_issue }}' === 'true';
+
+            const now     = new Date();
+            const quarter = ['Q1', 'Q2', 'Q3', 'Q4'][Math.floor(now.getMonth() / 3)];
+            const year    = now.getFullYear();
+
+            const statusEmoji = status === 'healthy' ? '✅' : status === 'warning' ? '⚠️' : '🚨';
+
+            const body = `## 📅 Quarterly BR-PPO Model Review — ${quarter} ${year}
+
+This is your scheduled quarterly reminder to review and potentially retrain the BR-PPO allocation model.
+
+**Current model status:** ${statusEmoji} \`${status.toUpperCase()}\`
+
+---
+
+### 📊 Signal Summary (90-day lookback)
+
+| Signal | Value | Threshold |
+|--------|-------|-----------|
+| Action entropy | ${entropy} | > 0.5 healthy |
+| Portfolio 30d return | ${pRet} | — |
+| SPY 30d return | ${sRet} | — |
+
+**Active alerts:**
+${alerts}
+
+---
+
+### 🔁 Retraining Checklist
+
+${status === 'healthy' && !healthData.training_recommended ? `✅ Model looks healthy — **retraining is optional but recommended quarterly.**
+
+Even a healthy model benefits from a quarterly refresh to incorporate new market data and regime shifts.` : `**⚠️ Retraining is recommended** based on current signal health.`}
+
+**Steps to retrain:**
+
+- [ ] Open Colab notebook: \`vision_ichimoku_agentic.py\`
+- [ ] Connect to a GPU runtime (T4 or better)
+- [ ] Run full pipeline **OR** just V10/V10B cells for PPO-only refresh
+- [ ] Download trained model: \`v10_bro_ppo_allocation_agent.zip\`
+- [ ] Replace \`artifacts/v10_bro_ppo_allocation_agent.zip\` in this repo
+- [ ] Replace \`artifacts/v10_bro_ppo_allocation_agent_metadata.json\`  
+- [ ] Commit and push
+- [ ] Verify next daily run uses new model (check the Actions logs)
+- [ ] Close this issue ✓
+
+---
+
+### ⏱️ Estimated time
+
+| Scope | Time | Compute |
+|-------|------|---------|
+| Full pipeline (V1–V10B) | 6–10 hours | T4 GPU |
+| PPO-only refresh (V10B) | 30–60 min | CPU OK |
+
+> 💡 **Pro tip:** If your alpha signal caches (Parquet files) are still on Drive, you can skip the vision/Ichimoku rebuild and jump straight to V10B. This makes the quarterly refresh much faster.
+
+---
+
+*Auto-created by the [quarterly_retrain workflow](https://github.com/${{ github.repository }}/actions/workflows/quarterly_retrain.yml). Close once retraining is complete.*`;
+
+            // Check for existing open quarterly issue this quarter
+            const openIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'quarterly-retrain',
+            });
+
+            const thisQuarterLabel = `${quarter} ${year}`;
+            const existing = openIssues.data.find(i => i.title.includes(thisQuarterLabel));
+
+            if (existing && !forceIssue) {
+              console.log(`Quarterly issue already exists for ${thisQuarterLabel}: #${existing.number}`);
+              // Add a health update comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `### 🔄 Scheduled health update — ${new Date().toISOString().slice(0,10)}\n\n**Status:** ${statusEmoji} \`${status}\`\n\nAlerts:\n${alerts}`,
+              });
+            } else {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `📅 Quarterly BR-PPO Model Review — ${quarter} ${year} [${statusEmoji} ${status}]`,
+                body: body,
+                labels: ['quarterly-retrain', 'model-health'],
+              });
+              console.log(`Created quarterly issue #${issue.data.number}: ${issue.data.html_url}`);
+            }
+
+      - name: Commit health logs
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add logs/health/ || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: quarterly health check update [skip ci]"
+            git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:main
+          fi

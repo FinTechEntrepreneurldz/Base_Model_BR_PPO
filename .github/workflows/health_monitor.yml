@@ -1,0 +1,220 @@
+name: Model Health Monitor
+
+on:
+  # Run every Friday at 21:00 UTC (after US market close)
+  schedule:
+    - cron: '0 21 * * 5'
+
+  # Also run after each daily trade (called from daily_paper_trader.yml)
+  workflow_call:
+    outputs:
+      health_status:
+        description: "overall_status: healthy | warning | degraded"
+        value: ${{ jobs.health_check.outputs.health_status }}
+      training_recommended:
+        description: "1 if retraining is recommended"
+        value: ${{ jobs.health_check.outputs.training_recommended }}
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      create_issue_on_warning:
+        description: "Create GitHub Issue even on warning (not just degraded)"
+        required: false
+        default: "false"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  health_check:
+    runs-on: ubuntu-latest
+    outputs:
+      health_status:        ${{ steps.monitor.outputs.health_status }}
+      training_recommended: ${{ steps.monitor.outputs.training_recommended }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -q yfinance pandas numpy
+
+      - name: Run signal monitor
+        id: monitor
+        env:
+          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          python scripts/signal_monitor.py --days 63 2>&1 | tee health_output.txt
+          EXIT_CODE=$?
+
+          # Parse health status from the JSON output
+          if [ -f logs/health/health_status.json ]; then
+            STATUS=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print(d.get('overall_status','unknown'))")
+            TRAINING=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print('1' if d.get('training_recommended') else '0')")
+          else
+            STATUS="unknown"
+            TRAINING="0"
+          fi
+
+          echo "health_status=$STATUS"       >> $GITHUB_OUTPUT
+          echo "training_recommended=$TRAINING" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE"           >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "────────────────────────────────────────"
+          echo "Overall status: $STATUS"
+          echo "Training recommended: $TRAINING"
+          echo "────────────────────────────────────────"
+
+          # Don't fail the step — let the next step decide
+          exit 0
+
+      - name: Commit health logs
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add logs/health/ || true
+          if git diff --cached --quiet; then
+            echo "No health log changes to commit."
+          else
+            git commit -m "chore: update model health status [skip ci]"
+            git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:main
+          fi
+
+      - name: Upload health report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report-${{ github.run_number }}
+          path: |
+            logs/health/health_status.json
+            health_output.txt
+          retention-days: 90
+
+      - name: Create GitHub Issue if degraded
+        if: steps.monitor.outputs.health_status == 'degraded' || (steps.monitor.outputs.training_recommended == '1' && steps.monitor.outputs.health_status != 'healthy')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            const fs = require('fs');
+            let healthData = {};
+            try {
+              healthData = JSON.parse(fs.readFileSync('logs/health/health_status.json', 'utf8'));
+            } catch(e) {}
+
+            const status = healthData.overall_status || 'unknown';
+            const alerts = (healthData.alerts || []).map(a => `- ⚠️ ${a}`).join('\n');
+            const entropy = healthData.action_entropy != null ? healthData.action_entropy.toFixed(3) : 'N/A';
+            const pSharpe = healthData.portfolio_sharpe_30d != null ? healthData.portfolio_sharpe_30d.toFixed(3) : 'N/A';
+            const sSharpe = healthData.spy_sharpe_30d != null ? healthData.spy_sharpe_30d.toFixed(3) : 'N/A';
+            const pRet    = healthData.portfolio_return_30d != null ? (healthData.portfolio_return_30d * 100).toFixed(1) + '%' : 'N/A';
+            const sRet    = healthData.spy_return_30d != null ? (healthData.spy_return_30d * 100).toFixed(1) + '%' : 'N/A';
+            const topAct  = healthData.top_action || 'N/A';
+            const topPct  = healthData.top_action_pct != null ? (healthData.top_action_pct * 100).toFixed(0) + '%' : 'N/A';
+
+            const title = `🚨 BR-PPO Model Health: ${status.toUpperCase()} — Retraining may be needed`;
+            const body = `## BR-PPO Model Health Alert
+
+**Status:** \`${status.toUpperCase()}\`
+**Detected:** ${new Date().toISOString().slice(0,19)} UTC
+**Workflow run:** [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+
+---
+
+### 📊 Key Metrics
+
+| Metric | Value |
+|--------|-------|
+| Action Entropy (21d) | ${entropy} (1.0 = fully diverse) |
+| Portfolio 30d Return | ${pRet} |
+| SPY 30d Return | ${sRet} |
+| Portfolio 30d Sharpe | ${pSharpe} |
+| SPY 30d Sharpe | ${sSharpe} |
+| Dominant Action | \`${topAct}\` (${topPct} of decisions) |
+
+---
+
+### ⚠️ Alerts
+
+${alerts || '_(none)_'}
+
+---
+
+### 🔁 Recommended Action
+
+${healthData.training_recommended ? `**Retraining is recommended.** Follow these steps:
+
+1. Open your Colab notebook \`vision_ichimoku_agentic.py\`
+2. Run all cells through **V10B** (BR-PPO tuning section)
+3. Download the trained model: \`v10_bro_ppo_allocation_agent.zip\`
+4. Replace \`artifacts/v10_bro_ppo_allocation_agent.zip\` in this repo
+5. Also replace \`artifacts/v10_bro_ppo_allocation_agent_metadata.json\`
+6. Commit and push — the daily workflow picks up the new model automatically
+
+> 💡 **Quick retrain path:** If you only need to update the PPO allocation policy (not the full vision pipeline), run only the V10/V10B cells in Colab using your cached alpha signal data. This takes ~30 min on CPU.` : 'Monitor the situation. No immediate retraining needed.'}
+
+---
+
+*This issue was auto-created by the [health_monitor workflow](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/workflows/health_monitor.yml). Close it once retraining is complete or the alert resolves.*`;
+
+            // Check if a similar open issue already exists
+            const openIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'model-health',
+            });
+
+            const existing = openIssues.data.find(i => i.title.includes('BR-PPO Model Health'));
+            if (existing) {
+              // Update the existing issue with a comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `### 🔄 Health Check Update — ${new Date().toISOString().slice(0,10)}\n\n**Status:** \`${status}\`\n\n${alerts}\n\n| Metric | Value |\n|--------|-------|\n| Action Entropy | ${entropy} |\n| Portfolio 30d | ${pRet} vs SPY ${sRet} |`,
+              });
+              console.log(`Updated existing issue #${existing.number}`);
+            } else {
+              // Create new issue
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['model-health', 'automated'],
+              });
+              console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+            }
+
+      - name: Create warning issue (if requested)
+        if: steps.monitor.outputs.health_status == 'warning' && github.event.inputs.create_issue_on_warning == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            const fs = require('fs');
+            let healthData = {};
+            try {
+              healthData = JSON.parse(fs.readFileSync('logs/health/health_status.json', 'utf8'));
+            } catch(e) {}
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `⚠️ BR-PPO Model Health: WARNING — Monitor signals`,
+              body: `## BR-PPO Model Health Warning\n\n**Status:** WARNING\n\n**Alerts:**\n${(healthData.alerts || []).map(a => `- ${a}`).join('\n')}\n\n*Auto-created by health_monitor workflow.*`,
+              labels: ['model-health', 'automated'],
+            });

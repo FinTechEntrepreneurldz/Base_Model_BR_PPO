@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -75,6 +76,43 @@ jobs:
           BRPPO_V6_MAX_NAMES:               "30"
         run: python paper_trader.py
 
+      - name: Run signal monitor (quick daily check)
+        id: health
+        run: |
+          pip install -q yfinance 2>/dev/null || true
+          python scripts/signal_monitor.py --days 63 2>&1 || true
+          if [ -f logs/health/health_status.json ]; then
+            STATUS=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print(d.get('overall_status','unknown'))")
+            TRAINING=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print('1' if d.get('training_recommended') else '0')")
+          else
+            STATUS="unknown"; TRAINING="0"
+          fi
+          echo "health_status=$STATUS" >> $GITHUB_OUTPUT
+          echo "training_recommended=$TRAINING" >> $GITHUB_OUTPUT
+          echo "Daily health check: $STATUS (training_recommended=$TRAINING)"
+
+      - name: Auto-create issue if degraded
+        if: steps.health.outputs.health_status == 'degraded'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            const fs = require('fs');
+            let healthData = {};
+            try { healthData = JSON.parse(fs.readFileSync('logs/health/health_status.json', 'utf8')); } catch(e) {}
+            const alerts = (healthData.alerts || []).map(a => `- ⚠️ ${a}`).join('\n') || '_(none)_';
+            const openIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'model-health',
+            });
+            if (!openIssues.data.find(i => i.title.includes('BR-PPO Model Health'))) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `🚨 BR-PPO Model Health: DEGRADED — Retraining needed`,
+                body: `## Model Health Alert\n\n**Status:** DEGRADED\n\n**Alerts:**\n${alerts}\n\n**Action required:** Please retrain the BR-PPO model. See the Model Health tab in your Streamlit dashboard for details.\n\n*Auto-created by daily trading workflow.*`,
+                labels: ['model-health', 'automated'],
+              });
+            }
+
       - name: Commit trading logs
         run: |
           git config user.name  "BR-PPO Trader Bot"
@@ -83,7 +121,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No log changes to commit."
           else
-            git commit -m "📊 Trading log — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "📊 Trading log — $(date -u '+%Y-%m-%d %H:%M UTC') [health: ${{ steps.health.outputs.health_status }}]"
             git push
           fi
 
