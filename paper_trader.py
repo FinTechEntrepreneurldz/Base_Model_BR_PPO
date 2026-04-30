@@ -120,6 +120,11 @@ def main():
     print("\n" + "=" * 70)
     print("BR-PPO ALPACA PAPER TRADER — STARTING")
     print("=" * 70)
+    model_id = os.environ.get("BRPPO_MODEL_ID", "default")
+    print(f"  Model ID    : {model_id}")
+    print(f"  Model path  : {getattr(se, 'MODEL_PATH', '?')}")
+    print(f"  Log dir     : {getattr(se, 'LOG_DIR', '?')}")
+    print(f"  Submit live : {getattr(se, 'SUBMIT_ORDERS', False)}")
 
     result     = run_trading_cycle()
     decision   = result.get("decision", {})

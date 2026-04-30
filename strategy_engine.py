@@ -47,8 +47,12 @@ if load_dotenv is not None:
 
 PROJECT_ROOT = Path(os.environ.get("BRPPO_PROJECT_ROOT", str(PROJECT_ROOT))).expanduser()
 ARTIFACT_DIR = PROJECT_ROOT / "artifacts"
-LOG_DIR      = PROJECT_ROOT / "logs"
+# LOG_DIR is overridable so multi-model deployments can write to logs/<model_id>/
+LOG_DIR      = Path(os.environ.get("BRPPO_LOG_DIR", str(PROJECT_ROOT / "logs"))).expanduser()
 DATA_DIR     = PROJECT_ROOT / "data"
+
+# MODEL_ID is informational -- workflows pass it for log labeling
+MODEL_ID     = os.environ.get("BRPPO_MODEL_ID", "default")
 
 for folder in [
     ARTIFACT_DIR,

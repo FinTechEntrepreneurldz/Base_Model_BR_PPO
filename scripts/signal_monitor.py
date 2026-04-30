@@ -20,8 +20,26 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 
+import os
 PROJECT_ROOT = Path(__file__).parent.parent
-LOG_DIR      = PROJECT_ROOT / "logs"
+
+def resolve_log_dir(model_id=None):
+    """Determine which logs directory to read/write from.
+
+    Priority: explicit --model-id arg > BRPPO_LOG_DIR env > BRPPO_MODEL_ID env > legacy 'logs/'.
+    """
+    if model_id:
+        return PROJECT_ROOT / "logs" / model_id
+    env_log_dir = os.environ.get("BRPPO_LOG_DIR")
+    if env_log_dir:
+        return Path(env_log_dir).expanduser()
+    env_model_id = os.environ.get("BRPPO_MODEL_ID")
+    if env_model_id:
+        return PROJECT_ROOT / "logs" / env_model_id
+    return PROJECT_ROOT / "logs"
+
+# Default LOG_DIR resolved from environment; main() may rebind based on --model-id.
+LOG_DIR = resolve_log_dir()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -284,14 +302,23 @@ def write_signal_history(decisions, portfolio):
 
 def main():
     parser = argparse.ArgumentParser(description="BR-PPO Signal Monitor")
+    parser.add_argument("--model-id",           type=str,   default=None, help="Model ID to monitor (reads logs/<id>/ )")
     parser.add_argument("--days",               type=int,   default=63,   help="Lookback window (days)")
     parser.add_argument("--threshold-entropy",  type=float, default=0.30, help="Min healthy action entropy")
     parser.add_argument("--threshold-sharpe",   type=float, default=-0.5, help="Min healthy Sharpe gap vs SPY")
     parser.add_argument("--fail-on-degraded",   action="store_true",      help="Exit code 1 if status=degraded")
     args = parser.parse_args()
 
+    # Rebind module-level LOG_DIR if --model-id was passed
+    global LOG_DIR
+    if args.model_id:
+        LOG_DIR = PROJECT_ROOT / "logs" / args.model_id
+
     print("=" * 60)
     print("BR-PPO Signal Monitor")
+    if args.model_id:
+        print(f"Model: {args.model_id}")
+    print(f"Reading logs from: {LOG_DIR}")
     print("=" * 60)
 
     decisions, portfolio = load_logs()

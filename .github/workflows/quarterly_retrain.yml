@@ -2,190 +2,125 @@ name: Quarterly Retrain Check
 
 on:
   schedule:
-    - cron: '0 14 2 1 *'
-    - cron: '0 14 1 4 *'
-    - cron: '0 14 1 7 *'
-    - cron: '0 14 1 10 *'
-
+    - cron: '0 14 2 1 *'   # Jan 2
+    - cron: '0 14 1 4 *'   # Apr 1
+    - cron: '0 14 1 7 *'   # Jul 1
+    - cron: '0 14 1 10 *'  # Oct 1
   workflow_dispatch:
     inputs:
       force_issue:
-        description: "Force create retraining issue even if model is healthy"
+        description: "Force create issue even if healthy"
         required: false
         default: "false"
+
+permissions:
+  contents: read
+  issues: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  quarterly_check:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+      count:  ${{ steps.set.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pyyaml
+      - id: set
+        run: |
+          python - <<'PY' >> $GITHUB_OUTPUT
+          import yaml, json
+          data = yaml.safe_load(open("models.yaml"))
+          enabled = [m for m in data["models"] if m.get("enabled", True)]
+          rows = [{"id": m["id"], "name": m.get("name", m["id"])} for m in enabled]
+          print(f"matrix={json.dumps({'include': rows})}")
+          print(f"count={len(rows)}")
+          PY
+
+  quarterly_check:
+    name: Quarterly check ${{ matrix.id }}
+    needs: setup
+    if: needs.setup.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -q yfinance pandas numpy
+      - run: pip install -q yfinance pandas numpy
 
       - name: Run signal monitor (90-day lookback)
         id: monitor
         run: |
-          python scripts/signal_monitor.py --days 90 2>&1 | tee quarterly_health.txt
-          if [ -f logs/health/health_status.json ]; then
-            STATUS=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print(d.get('overall_status','unknown'))")
+          python scripts/signal_monitor.py --model-id ${{ matrix.id }} --days 90 2>&1 || true
+          STATUS_FILE="logs/${{ matrix.id }}/health/health_status.json"
+          if [ -f "$STATUS_FILE" ]; then
+            STATUS=$(python3 -c "import json; print(json.load(open('$STATUS_FILE')).get('overall_status','unknown'))")
           else
             STATUS="unknown"
           fi
           echo "health_status=$STATUS" >> $GITHUB_OUTPUT
-          echo "Health status: $STATUS"
-          exit 0
 
-      - name: Write quarterly issue content
+      - name: Build issue body
         run: |
-          python3 - <<'PYEOF'
-          import json, datetime
+          STATUS_FILE="logs/${{ matrix.id }}/health/health_status.json"
+          python3 - <<PY > /tmp/issue_body.md
+          import json, os
+          d = json.load(open("$STATUS_FILE")) if os.path.exists("$STATUS_FILE") else {}
+          status = d.get("overall_status", "unknown").upper()
+          alerts = d.get("alerts", [])
+          alerts_md = "\n".join(f"- ⚠️ {a}" for a in alerts) if alerts else "_(none)_"
+          print(f"""## Quarterly Retraining Review — \`${{ matrix.id }}\` (${{ matrix.name }})
 
-          try:
-              h = json.load(open('logs/health/health_status.json'))
-          except Exception:
-              h = {}
+          **Current health (90-day):** {status}
 
-          status  = h.get('overall_status', 'unknown').upper()
-          alerts  = '\n'.join('- ' + a for a in h.get('alerts', [])) or '_(none)_'
-          entropy = str(round(h['action_entropy'], 3)) if h.get('action_entropy') is not None else 'N/A'
-          p_ret   = (str(round(h['portfolio_return_30d']*100, 1)) + '%') if h.get('portfolio_return_30d') is not None else 'N/A'
-          s_ret   = (str(round(h['spy_return_30d']*100, 1)) + '%')       if h.get('spy_return_30d') is not None else 'N/A'
+          **Alerts:**
+          {alerts_md}
 
-          now     = datetime.datetime.utcnow()
-          quarter = 'Q' + str((now.month - 1) // 3 + 1)
-          year    = str(now.year)
-          qy      = quarter + ' ' + year
+          ### Quarterly retraining checklist for \`${{ matrix.id }}\`
 
-          if status == 'HEALTHY' and not h.get('training_recommended'):
-              health_note = (
-                  'Model looks healthy -- **retraining is optional but recommended quarterly.**\n\n'
-                  'Even a healthy model benefits from a quarterly refresh to incorporate new market data.'
-              )
-          else:
-              health_note = '**Retraining is recommended** based on current signal health.'
+          - [ ] Open \`vision_ichimoku_agentic.py\` in Colab
+          - [ ] Roll \`CONFIG\` dates forward:
+                - Train end → ~18 months ago
+                - Validation end → ~3 months ago
+                - Test start → 3 months ago
+          - [ ] Run all cells (4–8 hours on a T4 GPU)
+          - [ ] Verify validation Sharpe beats benchmarks
+          - [ ] Replace \`artifacts/${{ matrix.id }}/agent.zip\` + \`metadata.json\`
+          - [ ] Confirm \`action_names\` and \`action_specs\` match the previous metadata
+          - [ ] Run a dry-run via Actions → Daily Paper Trader → \`only_model=${{ matrix.id }}\`, \`dry_run=true\`
+          - [ ] Sanity-check the dry-run target weights
+          - [ ] Run live (\`dry_run=false\`)
+          - [ ] Close this issue
 
-          body = '\n'.join([
-              '## Quarterly BR-PPO Model Review -- ' + qy,
-              '',
-              'Scheduled quarterly reminder to review and potentially retrain the BR-PPO allocation model.',
-              '',
-              '**Current model status:** `' + status + '`',
-              '',
-              '---',
-              '',
-              '### Signal Summary (90-day lookback)',
-              '',
-              '| Signal | Value | Threshold |',
-              '|--------|-------|-----------|',
-              '| Action entropy | ' + entropy + ' | > 0.5 healthy |',
-              '| Portfolio 30d return | ' + p_ret + ' | -- |',
-              '| SPY 30d return | ' + s_ret + ' | -- |',
-              '',
-              '**Active alerts:**',
-              alerts,
-              '',
-              '---',
-              '',
-              '### Retraining Checklist',
-              '',
-              health_note,
-              '',
-              '- [ ] Open Colab notebook `vision_ichimoku_agentic.py`',
-              '- [ ] Connect to a GPU runtime (T4 or better)',
-              '- [ ] Run full pipeline OR just V10/V10B cells for PPO-only refresh',
-              '- [ ] Download trained model: `v10_bro_ppo_allocation_agent.zip`',
-              '- [ ] Replace `artifacts/v10_bro_ppo_allocation_agent.zip` in this repo',
-              '- [ ] Replace `artifacts/v10_bro_ppo_allocation_agent_metadata.json`',
-              '- [ ] Commit and push',
-              '- [ ] Verify next daily run uses new model (check the Actions logs)',
-              '- [ ] Close this issue',
-              '',
-              '---',
-              '',
-              '### Estimated time',
-              '',
-              '| Scope | Time | Compute |',
-              '|-------|------|---------|',
-              '| Full pipeline (V1-V10B) | 6-10 hours | T4 GPU |',
-              '| PPO-only refresh (V10B) | 30-60 min | CPU OK |',
-              '',
-              '---',
-              '',
-              '*Auto-created by quarterly_retrain workflow. Close once retraining is complete.*',
-          ])
-
-          title = 'Quarterly BR-PPO Model Review -- ' + qy + ' [' + status + ']'
-
-          with open('quarterly_title.txt', 'w') as f:
-              f.write(title)
-          with open('quarterly_body.txt', 'w') as f:
-              f.write(body)
-          with open('quarter_label.txt', 'w') as f:
-              f.write(qy)
-          print('Content written for ' + qy)
-          PYEOF
+          *Auto-created by quarterly schedule.*
+          """)
+          PY
 
       - name: Create quarterly issue
+        if: steps.monitor.outputs.health_status == 'degraded' || steps.monitor.outputs.health_status == 'warning' || github.event.inputs.force_issue == 'true' || github.event_name == 'schedule'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GH_PAT }}
           script: |
-            const fs    = require('fs');
-            const title = fs.readFileSync('quarterly_title.txt', 'utf8').trim();
-            const body  = fs.readFileSync('quarterly_body.txt', 'utf8').trim();
-            const qy    = fs.readFileSync('quarter_label.txt', 'utf8').trim();
-            const force = '${{ github.event.inputs.force_issue }}' === 'true';
-
-            const open = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              state: 'open',
-              labels: 'quarterly-retrain',
+            const fs = require('fs');
+            const body = fs.readFileSync('/tmp/issue_body.md', 'utf8');
+            const modelId = '${{ matrix.id }}';
+            const date = new Date().toISOString().slice(0, 10);
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `📅 Quarterly Retrain [${modelId}] — ${date}`,
+              body: body,
+              labels: ['model-health', 'quarterly-review', `model:${modelId}`],
             });
-
-            const existing = open.data.find(i => i.title.includes(qy));
-            if (existing && !force) {
-              await github.rest.issues.createComment({
-                owner:        context.repo.owner,
-                repo:         context.repo.repo,
-                issue_number: existing.number,
-                body:         'Scheduled health update ' + new Date().toISOString().slice(0,10) + '\n\n' + body,
-              });
-              core.info('Updated existing issue #' + existing.number);
-            } else {
-              const issue = await github.rest.issues.create({
-                owner:  context.repo.owner,
-                repo:   context.repo.repo,
-                title:  title,
-                body:   body,
-                labels: ['quarterly-retrain', 'model-health'],
-              });
-              core.info('Created issue #' + issue.data.number);
-            }
-
-      - name: Commit health logs
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add logs/health/ || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "chore: quarterly health check update [skip ci]"
-            git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:main
-          fi

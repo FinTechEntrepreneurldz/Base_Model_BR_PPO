@@ -11,6 +11,11 @@ on:
         default: "false"
         type: choice
         options: ["true", "false"]
+      only_model:
+        description: "Run only this model_id (leave blank for all)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -20,10 +25,52 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # 1. Build dynamic matrix from models.yaml
+  # ──────────────────────────────────────────────────────────────────
+  setup:
+    name: Build model matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+      count:  ${{ steps.set.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pyyaml
+        run: pip install -q pyyaml
+      - id: set
+        env:
+          ONLY_MODEL: ${{ github.event.inputs.only_model }}
+        run: |
+          python - <<'PY' >> $GITHUB_OUTPUT
+          import yaml, json, os
+          with open("models.yaml") as f:
+              data = yaml.safe_load(f)
+          only = os.environ.get("ONLY_MODEL", "").strip()
+          enabled = [m for m in data["models"] if m.get("enabled", True)]
+          if only:
+              enabled = [m for m in enabled if m["id"] == only]
+          rows = [{"id": m["id"], "environment": m["environment"]} for m in enabled]
+          print(f"matrix={json.dumps({'include': rows})}")
+          print(f"count={len(rows)}")
+          PY
+      - run: |
+          echo "Will run ${{ steps.set.outputs.count }} model(s):"
+          echo '${{ steps.set.outputs.matrix }}' | python -m json.tool
+
+  # ──────────────────────────────────────────────────────────────────
+  # 2. Trade — one parallel matrix job per enabled model
+  # ──────────────────────────────────────────────────────────────────
   trade:
-    name: BR-PPO Paper Trade
+    name: Trade ${{ matrix.id }}
+    needs: setup
+    if: needs.setup.outputs.count != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    environment: ${{ matrix.environment }}    # ← scoped Alpaca secrets per model
 
     steps:
       - name: Checkout repo
@@ -47,7 +94,7 @@ jobs:
       - name: Install dependencies
         run: pip install -q -r requirements.txt
 
-      - name: Check if today is a trading day
+      - name: Check trading day
         id: market_check
         run: python scripts/market_check.py --info
         continue-on-error: true
@@ -55,18 +102,25 @@ jobs:
       - name: Skip on non-trading day
         if: steps.market_check.outcome == 'failure'
         run: |
-          echo "Today is not a NYSE trading day. Skipping."
+          echo "Today is not a NYSE trading day. Skipping ${{ matrix.id }}."
           exit 0
 
-      - name: Run BR-PPO paper trader
+      - name: Sanity-check model files exist
+        run: |
+          test -f artifacts/${{ matrix.id }}/agent.zip      || (echo "Missing artifacts/${{ matrix.id }}/agent.zip"      && exit 1)
+          test -f artifacts/${{ matrix.id }}/metadata.json  || (echo "Missing artifacts/${{ matrix.id }}/metadata.json"  && exit 1)
+
+      - name: Run BR-PPO paper trader for ${{ matrix.id }}
         env:
           ALPACA_API_KEY:                   ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY:                ${{ secrets.ALPACA_SECRET_KEY }}
           ALPACA_PAPER:                     "True"
           BRPPO_SUBMIT_ORDERS:              ${{ github.event.inputs.dry_run == 'true' && 'False' || 'True' }}
           BRPPO_PROJECT_ROOT:               "."
-          BRPPO_MODEL_PATH:                 "./artifacts/v10_bro_ppo_allocation_agent.zip"
-          BRPPO_METADATA_PATH:              "./artifacts/v10_bro_ppo_allocation_agent_metadata.json"
+          BRPPO_MODEL_ID:                   ${{ matrix.id }}
+          BRPPO_MODEL_PATH:                 "./artifacts/${{ matrix.id }}/agent.zip"
+          BRPPO_METADATA_PATH:              "./artifacts/${{ matrix.id }}/metadata.json"
+          BRPPO_LOG_DIR:                    "./logs/${{ matrix.id }}"
           BRPPO_MIN_TRADE_DOLLARS:          "25"
           BRPPO_MAX_POSITION_WEIGHT:        "0.20"
           BRPPO_MAX_GROSS_EXPOSURE:         "1.00"
@@ -76,44 +130,129 @@ jobs:
           BRPPO_V6_MAX_NAMES:               "30"
         run: python paper_trader.py
 
-      - name: Run signal monitor (quick daily check)
+      - name: Run signal monitor
         id: health
         run: |
-          pip install -q yfinance 2>/dev/null || true
-          python scripts/signal_monitor.py --days 63 2>&1 || true
-          if [ -f logs/health/health_status.json ]; then
-            STATUS=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print(d.get('overall_status','unknown'))")
-            TRAINING=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print('1' if d.get('training_recommended') else '0')")
+          python scripts/signal_monitor.py --model-id ${{ matrix.id }} --days 63 2>&1 || true
+          STATUS_FILE="logs/${{ matrix.id }}/health/health_status.json"
+          if [ -f "$STATUS_FILE" ]; then
+            STATUS=$(python3 -c "import json; print(json.load(open('$STATUS_FILE')).get('overall_status','unknown'))")
+            TRAINING=$(python3 -c "import json; print('1' if json.load(open('$STATUS_FILE')).get('training_recommended') else '0')")
           else
             STATUS="unknown"; TRAINING="0"
           fi
           echo "health_status=$STATUS" >> $GITHUB_OUTPUT
           echo "training_recommended=$TRAINING" >> $GITHUB_OUTPUT
-          echo "Daily health check: $STATUS (training_recommended=$TRAINING)"
+          echo "[${{ matrix.id }}] health: $STATUS  (training_recommended=$TRAINING)"
 
-      - name: Auto-create issue if degraded
+      - name: Build issue body for degraded model
+        if: steps.health.outputs.health_status == 'degraded'
+        run: |
+          STATUS_FILE="logs/${{ matrix.id }}/health/health_status.json"
+          python3 - <<PY > /tmp/issue_body.md
+          import json, os
+          d = json.load(open("$STATUS_FILE"))
+          alerts = d.get("alerts", [])
+          alerts_md = "\n".join(f"- ⚠️ {a}" for a in alerts) if alerts else "_(none)_"
+          print(f"""## Model Health Alert — \`${{ matrix.id }}\`
+
+          **Status:** DEGRADED
+          **Model ID:** ${{ matrix.id }}
+
+          **Alerts:**
+          {alerts_md}
+
+          **Action required:** Retrain this model. See the Model Health tab in the Streamlit dashboard, filtered to \`${{ matrix.id }}\`.
+
+          **To retrain:**
+          1. Open the Colab notebook (\`vision_ichimoku_agentic.py\`)
+          2. Update \`CONFIG\` dates to roll training window forward
+          3. Run all cells, save model files
+          4. Replace \`artifacts/${{ matrix.id }}/agent.zip\` and \`artifacts/${{ matrix.id }}/metadata.json\`
+          5. Push to main — next daily run uses the new model
+
+          *Auto-created by daily trading workflow.*
+          """)
+          PY
+
+      - name: Create issue if degraded (per-model)
         if: steps.health.outputs.health_status == 'degraded'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GH_PAT }}
           script: |
             const fs = require('fs');
-            let healthData = {};
-            try { healthData = JSON.parse(fs.readFileSync('logs/health/health_status.json', 'utf8')); } catch(e) {}
-            const alerts = (healthData.alerts || []).map(a => `- ⚠️ ${a}`).join('\n') || '_(none)_';
-            const openIssues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'model-health',
+            const body = fs.readFileSync('/tmp/issue_body.md', 'utf8');
+            const modelId = '${{ matrix.id }}';
+            const titleTag = `BR-PPO Health [${modelId}]`;
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'model-health',
             });
-            if (!openIssues.data.find(i => i.title.includes('BR-PPO Model Health'))) {
+            const existing = open.data.find(i => i.title.includes(titleTag));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number,
+                body: '**New degraded check:**\n\n' + body,
+              });
+            } else {
               await github.rest.issues.create({
                 owner: context.repo.owner, repo: context.repo.repo,
-                title: `🚨 BR-PPO Model Health: DEGRADED — Retraining needed`,
-                body: `## Model Health Alert\n\n**Status:** DEGRADED\n\n**Alerts:**\n${alerts}\n\n**Action required:** Please retrain the BR-PPO model. See the Model Health tab in your Streamlit dashboard for details.\n\n*Auto-created by daily trading workflow.*`,
-                labels: ['model-health', 'automated'],
+                title: `🚨 ${titleTag} — DEGRADED, retraining needed`,
+                body: body,
+                labels: ['model-health', 'automated', `model:${modelId}`],
               });
             }
 
-      - name: Commit trading logs
+      - name: Upload per-model logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.id }}-${{ github.run_id }}
+          path: logs/${{ matrix.id }}/
+          retention-days: 90
+
+  # ──────────────────────────────────────────────────────────────────
+  # 3. Commit all logs in a single follow-up job (avoids matrix conflicts)
+  # ──────────────────────────────────────────────────────────────────
+  commit-logs:
+    name: Commit aggregated logs
+    needs: trade
+    if: always() && needs.trade.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 1
+
+      - name: Download all per-model log artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/logs-staging
+          pattern: logs-*-${{ github.run_id }}
+          merge-multiple: false
+
+      - name: Copy artifact contents into logs/<model_id>/
+        run: |
+          set -e
+          if [ ! -d /tmp/logs-staging ]; then
+            echo "No artifacts downloaded — nothing to commit."
+            exit 0
+          fi
+          for dir in /tmp/logs-staging/logs-*; do
+            [ -d "$dir" ] || continue
+            artifact_name=$(basename "$dir")
+            # name pattern: logs-<model_id>-<run_id>
+            model_id=$(echo "$artifact_name" | sed -E 's/^logs-(.+)-[0-9]+$/\1/')
+            echo "Copying $artifact_name → logs/$model_id/"
+            mkdir -p "logs/$model_id"
+            cp -r "$dir/." "logs/$model_id/"
+          done
+
+      - name: Commit & push
         run: |
           git config user.name  "BR-PPO Trader Bot"
           git config user.email "bot@brppo-trading.local"
@@ -121,14 +260,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No log changes to commit."
           else
-            git commit -m "📊 Trading log — $(date -u '+%Y-%m-%d %H:%M UTC') [health: ${{ steps.health.outputs.health_status }}]"
+            git commit -m "📊 Trading logs — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git pull --rebase origin main || true
             git push
           fi
-
-      - name: Upload logs artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trading-logs-${{ github.run_id }}
-          path: logs/
-          retention-days: 90

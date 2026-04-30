@@ -24,7 +24,42 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-LOG_DIR = Path(__file__).parent / "logs"
+REPO_ROOT  = Path(__file__).parent
+LOGS_ROOT  = REPO_ROOT / "logs"
+MODELS_YAML = REPO_ROOT / "models.yaml"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Model registry
+# ──────────────────────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=60)
+def load_models_registry():
+    """Read models.yaml; return list of enabled models with id, name, color, etc.
+
+    Falls back gracefully if pyyaml isn't available or the file is missing.
+    """
+    try:
+        import yaml
+        with open(MODELS_YAML) as f:
+            data = yaml.safe_load(f) or {}
+        enabled = [m for m in (data.get("models") or []) if m.get("enabled", True)]
+        if enabled:
+            return enabled
+    except Exception:
+        pass
+
+    # Fallback: derive from logs/ subdirectories
+    fallback = []
+    if LOGS_ROOT.exists():
+        for sub in sorted(LOGS_ROOT.iterdir()):
+            if sub.is_dir() and (sub / "decisions").exists():
+                fallback.append({"id": sub.name, "name": sub.name, "color": "#4c9eff", "environment": sub.name})
+    if fallback:
+        return fallback
+
+    # Last-resort legacy fallback
+    return [{"id": "default", "name": "Default", "color": "#4c9eff", "environment": "default"}]
 
 PALETTE = {
     "bg":       "#0e1117",
@@ -126,24 +161,25 @@ def load_csv(path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def load_all():
+def load_all(log_dir: Path):
+    log_dir = Path(log_dir)
     return {
-        "decisions":        load_csv(LOG_DIR / "decisions"      / "decisions.csv"),
-        "latest_decision":  load_csv(LOG_DIR / "decisions"      / "latest_decision.csv"),
-        "portfolio":        load_csv(LOG_DIR / "portfolio"       / "portfolio.csv"),
-        "target_weights":   load_csv(LOG_DIR / "target_weights"  / "latest_target_weights.csv"),
-        "tw_history":       load_csv(LOG_DIR / "target_weights"  / "target_weights.csv"),
-        "positions":        load_csv(LOG_DIR / "positions"       / "latest_positions.csv"),
-        "planned_orders":   load_csv(LOG_DIR / "orders"          / "latest_planned_orders.csv"),
-        "submitted_orders": load_csv(LOG_DIR / "orders"          / "latest_submitted_orders.csv"),
-        "orders_history":   load_csv(LOG_DIR / "orders"          / "submitted_orders.csv"),
-        "signal_history":   load_csv(LOG_DIR / "health"          / "signal_history.csv"),
-        "health_status":    _load_health_status(),
+        "decisions":        load_csv(log_dir / "decisions"      / "decisions.csv"),
+        "latest_decision":  load_csv(log_dir / "decisions"      / "latest_decision.csv"),
+        "portfolio":        load_csv(log_dir / "portfolio"       / "portfolio.csv"),
+        "target_weights":   load_csv(log_dir / "target_weights"  / "latest_target_weights.csv"),
+        "tw_history":       load_csv(log_dir / "target_weights"  / "target_weights.csv"),
+        "positions":        load_csv(log_dir / "positions"       / "latest_positions.csv"),
+        "planned_orders":   load_csv(log_dir / "orders"          / "latest_planned_orders.csv"),
+        "submitted_orders": load_csv(log_dir / "orders"          / "latest_submitted_orders.csv"),
+        "orders_history":   load_csv(log_dir / "orders"          / "submitted_orders.csv"),
+        "signal_history":   load_csv(log_dir / "health"          / "signal_history.csv"),
+        "health_status":    _load_health_status(log_dir),
     }
 
 
-def _load_health_status():
-    path = LOG_DIR / "health" / "health_status.json"
+def _load_health_status(log_dir: Path):
+    path = Path(log_dir) / "health" / "health_status.json"
     if not path.exists():
         return {}
     try:
@@ -400,11 +436,30 @@ with st.sidebar:
     st.markdown("## 📈 BR-PPO Trader")
     st.markdown("---")
 
+    # ── Model selector (drives what the rest of the dashboard shows) ──
+    registry = load_models_registry()
+    model_ids   = [m["id"] for m in registry]
+    model_names = {m["id"]: m.get("name", m["id"]) for m in registry}
+    model_color = {m["id"]: m.get("color", "#4c9eff") for m in registry}
+
+    default_idx = 0
+    selected_id = st.selectbox(
+        "Model",
+        options=model_ids,
+        index=default_idx,
+        format_func=lambda mid: model_names.get(mid, mid),
+        key="selected_model",
+    )
+
+    # Resolve LOG_DIR for the rest of the page based on selection
+    LOG_DIR = LOGS_ROOT / selected_id
+    st.caption(f"Showing: `logs/{selected_id}/`")
+
     if st.button("🔄 Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-    data = load_all()
+    data = load_all(LOG_DIR)
     dec  = data["latest_decision"]
     port = data["portfolio"]
 
@@ -465,7 +520,8 @@ with st.sidebar:
 # ──────────────────────────────────────────────────────────────────────────────
 
 st.markdown("# 📈 BR-PPO Alpaca Paper Trading")
-st.markdown("*Powered by Proximal Policy Optimization — V10 Allocation Agent*")
+_subtitle = model_names.get(selected_id, selected_id)
+st.markdown(f"*Viewing model: **{_subtitle}** (`{selected_id}`)*")
 st.markdown("---")
 
 
@@ -473,7 +529,8 @@ st.markdown("---")
 # Tabs
 # ──────────────────────────────────────────────────────────────────────────────
 
-tab_overview, tab_perf, tab_portfolio, tab_orders, tab_history, tab_health = st.tabs([
+tab_compare, tab_overview, tab_perf, tab_portfolio, tab_orders, tab_history, tab_health = st.tabs([
+    "🔬 Compare Models",
     "🏠 Overview",
     "📊 Performance",
     "🎯 Portfolio",
@@ -481,6 +538,146 @@ tab_overview, tab_perf, tab_portfolio, tab_orders, tab_history, tab_health = st.
     "📜 History",
     "🧠 Model Health",
 ])
+
+
+# ════════════════════════════════════════════════════════════════
+# TAB 0: COMPARE MODELS  (overlay equity curves across all enabled models)
+# ════════════════════════════════════════════════════════════════
+
+with tab_compare:
+    st.markdown("### Side-by-side comparison of all enabled models")
+    st.caption("Each model trades a separate Alpaca paper account. Curves below are normalized to 100 at first observation.")
+
+    if len(registry) <= 1:
+        st.info(
+            "Only one model is currently registered. To enable comparison, add additional models to "
+            "`models.yaml` and create their GitHub Environments. See README for the 5-step add-a-model recipe."
+        )
+    else:
+        # Build per-model data dict
+        all_data = {}
+        for m in registry:
+            mid = m["id"]
+            mdir = LOGS_ROOT / mid
+            all_data[mid] = {
+                "name": m.get("name", mid),
+                "color": m.get("color", "#4c9eff"),
+                "portfolio":   load_csv(mdir / "portfolio"  / "portfolio.csv"),
+                "decisions":   load_csv(mdir / "decisions"  / "decisions.csv"),
+                "health":      _load_health_status(mdir),
+            }
+
+        # ── Equity curves overlay ──
+        fig = go.Figure()
+        any_data = False
+        for mid, d in all_data.items():
+            p = d["portfolio"]
+            if p.empty or "portfolio_value" not in p.columns:
+                continue
+            ts_col = "timestamp_utc" if "timestamp_utc" in p.columns else None
+            if ts_col is None:
+                continue
+            p = p.copy()
+            p[ts_col] = pd.to_datetime(p[ts_col], utc=True, errors="coerce")
+            p = p.dropna(subset=[ts_col]).sort_values(ts_col)
+            if p.empty:
+                continue
+            base = float(p["portfolio_value"].iloc[0])
+            if base <= 0:
+                continue
+            norm = p["portfolio_value"] / base * 100.0
+            fig.add_trace(go.Scatter(
+                x=p[ts_col], y=norm,
+                mode="lines", name=d["name"],
+                line=dict(color=d["color"], width=2.2),
+                hovertemplate="<b>%{fullData.name}</b><br>%{x|%b %d %Y}<br>Index: %{y:.2f}<extra></extra>",
+            ))
+            any_data = True
+
+        # SPY benchmark for context
+        try:
+            import yfinance as yf
+            first_dates = []
+            for d in all_data.values():
+                p = d["portfolio"]
+                if not p.empty and "timestamp_utc" in p.columns:
+                    first_dates.append(pd.to_datetime(p["timestamp_utc"]).min())
+            if first_dates:
+                start = min(first_dates).strftime("%Y-%m-%d")
+                spy = yf.download("SPY", start=start, progress=False, auto_adjust=True)["Close"]
+                if isinstance(spy, pd.DataFrame):
+                    spy = spy.iloc[:, 0]
+                spy = spy.dropna()
+                if len(spy) > 1:
+                    spy_norm = spy / float(spy.iloc[0]) * 100.0
+                    fig.add_trace(go.Scatter(
+                        x=spy.index, y=spy_norm,
+                        mode="lines", name="SPY (benchmark)",
+                        line=dict(color="#8892a4", width=1.5, dash="dash"),
+                    ))
+        except Exception:
+            pass
+
+        if not any_data:
+            st.warning("No model has portfolio history yet. Compare view will populate after the first trade run for each model.")
+        else:
+            fig.update_layout(
+                template="plotly_dark",
+                height=480,
+                title="Equity index — all models normalized to 100",
+                xaxis_title=None, yaxis_title="Index (start = 100)",
+                hovermode="x unified",
+                margin=dict(l=10, r=10, t=50, b=10),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # ── Per-model summary table ──
+        st.markdown("### Summary by model")
+        summary_rows = []
+        for mid, d in all_data.items():
+            p = d["portfolio"]
+            dec_h = d["decisions"]
+            row = {"Model": d["name"], "ID": mid}
+            if not p.empty and "portfolio_value" in p.columns:
+                vals = p["portfolio_value"].dropna()
+                if len(vals) >= 2:
+                    rets = vals.pct_change().dropna()
+                    total_ret = float(vals.iloc[-1] / vals.iloc[0] - 1.0)
+                    sharpe = float(rets.mean() / rets.std() * math.sqrt(252)) if rets.std() > 0 else None
+                    row["Latest Value"] = fmt_dollars(float(vals.iloc[-1]))
+                    row["Total Return"] = fmt_pct(total_ret)
+                    row["Sharpe (ann.)"] = f"{sharpe:.2f}" if sharpe is not None else "—"
+                else:
+                    row["Latest Value"] = fmt_dollars(float(vals.iloc[-1])) if len(vals) else "—"
+                    row["Total Return"] = "—"
+                    row["Sharpe (ann.)"] = "—"
+            else:
+                row["Latest Value"] = "—"
+                row["Total Return"] = "—"
+                row["Sharpe (ann.)"] = "—"
+
+            row["Runs"] = len(dec_h)
+            health_status = (d["health"] or {}).get("overall_status", "—")
+            badge = {"healthy": "🟢", "warning": "🟡", "degraded": "🔴"}.get(health_status, "⚪")
+            row["Health"] = f"{badge} {health_status}"
+            summary_rows.append(row)
+
+        if summary_rows:
+            st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
+
+        # ── Latest action per model ──
+        st.markdown("### Latest action per model")
+        action_cols = st.columns(min(len(all_data), 4) or 1)
+        for i, (mid, d) in enumerate(all_data.items()):
+            dec_latest = load_csv(LOGS_ROOT / mid / "decisions" / "latest_decision.csv")
+            with action_cols[i % len(action_cols)]:
+                if dec_latest.empty:
+                    metric_card(d["name"], "no data")
+                else:
+                    a = str(dec_latest["action"].iloc[-1]) if "action" in dec_latest.columns else "—"
+                    av = fmt_dollars(dec_latest["account_value"].iloc[-1]) if "account_value" in dec_latest.columns else ""
+                    metric_card(d["name"], a, delta=av if av else None, delta_sign="neu")
 
 
 # ════════════════════════════════════════════════════════════════

@@ -1,6 +1,39 @@
 # BR-PPO Alpaca Paper Trading System
 
-Fully automated daily paper trading using a **Proximal Policy Optimization (PPO)** agent to dynamically allocate across equity portfolios and ETFs via the Alpaca Paper Trading API.
+Fully automated daily paper trading using **Proximal Policy Optimization (PPO)** agents to dynamically allocate across equity portfolios and ETFs via the Alpaca Paper Trading API. Supports running **multiple models in parallel**, each trading its own Alpaca paper account.
+
+---
+
+## Multi-model setup
+
+Models are registered in [`models.yaml`](models.yaml). The daily workflow reads this file and runs one parallel matrix job per **enabled** model. Each model gets its own:
+- Alpaca paper account (via GitHub Environment-scoped secrets)
+- Subdirectory under `artifacts/<model_id>/` for the agent zip + metadata
+- Subdirectory under `logs/<model_id>/` for trade history
+
+### Adding a new model (5-step recipe)
+
+1. **Create a new Alpaca paper account** → grab API key + secret.
+2. **Create a GitHub Environment** named exactly `<model_id>` (e.g. `model_b`):
+   `Repo → Settings → Environments → New environment`. Inside that environment, add two secrets:
+   - `ALPACA_API_KEY`
+   - `ALPACA_SECRET_KEY`
+3. **Drop trained model files** into the repo at:
+   ```
+   artifacts/<model_id>/agent.zip
+   artifacts/<model_id>/metadata.json
+   ```
+4. **Add an entry to `models.yaml`** with `enabled: true` and `environment: <model_id>`.
+5. **Commit & push** — the next 9 AM ET run includes the new model. Streamlit dashboard picks it up automatically (Compare tab + selector).
+
+To temporarily disable a model without removing it, set `enabled: false`. Existing logs are preserved.
+
+### Running ad-hoc
+
+`Actions → Daily Paper Trader → Run workflow`:
+- Leave `only_model` blank → runs every enabled model in parallel.
+- Set `only_model` to a specific id → runs just that one (useful when testing a freshly retrained model).
+- Set `dry_run: true` → computes target weights and logs them, but does not submit orders.
 
 ---
 

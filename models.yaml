@@ -1,0 +1,38 @@
+# BR-PPO Model Registry
+# ============================================================
+# Each entry below is a deployed model. The daily paper trader
+# runs one matrix job per ENABLED model, in parallel, each
+# trading its own Alpaca paper account.
+#
+# To add a new model:
+#   1. Create a new Alpaca paper account, grab API key + secret
+#   2. Create a GitHub Environment named exactly the value of
+#      `environment` below (Settings -> Environments -> New)
+#   3. In that environment, add two secrets:
+#        ALPACA_API_KEY
+#        ALPACA_SECRET_KEY
+#   4. Drop the trained model files into:
+#        artifacts/<id>/agent.zip
+#        artifacts/<id>/metadata.json
+#   5. Add an entry below with enabled: true
+#   6. Commit & push -- the next workflow run picks it up.
+#
+# To temporarily disable a model without deleting it,
+# set enabled: false. Its existing logs are preserved.
+# ============================================================
+
+models:
+  - id: model_a
+    name: "BR-PPO V10 (original)"
+    description: "Trained 2015-2018. First deployed model."
+    environment: model_a
+    enabled: true
+    color: "#00d4aa"
+
+  # Example template for adding model_b -- uncomment & fill in:
+  # - id: model_b
+  #   name: "BR-PPO V10 (retrained 2015-2024)"
+  #   description: "Retrained on extended window including COVID + rate shock"
+  #   environment: model_b
+  #   enabled: true
+  #   color: "#ff6b00"

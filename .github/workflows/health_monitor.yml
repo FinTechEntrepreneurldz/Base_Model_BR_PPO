@@ -2,217 +2,140 @@ name: Model Health Monitor
 
 on:
   schedule:
-    - cron: '0 21 * * 5'
-
-  workflow_call:
-    outputs:
-      health_status:
-        description: "overall_status: healthy | warning | degraded"
-        value: ${{ jobs.health_check.outputs.health_status }}
-      training_recommended:
-        description: "1 if retraining is recommended"
-        value: ${{ jobs.health_check.outputs.training_recommended }}
-
+    - cron: '0 21 * * 5'   # Fridays 21:00 UTC = 5:00 PM ET (post-close)
   workflow_dispatch:
     inputs:
       create_issue_on_warning:
-        description: "Create GitHub Issue even on warning"
+        description: "Create issue even on warning"
         required: false
         default: "false"
+
+permissions:
+  contents: read
+  issues: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  health_check:
+  setup:
+    name: Build model matrix
     runs-on: ubuntu-latest
     outputs:
-      health_status:        ${{ steps.monitor.outputs.health_status }}
-      training_recommended: ${{ steps.monitor.outputs.training_recommended }}
+      matrix: ${{ steps.set.outputs.matrix }}
+      count:  ${{ steps.set.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pyyaml
+      - id: set
+        run: |
+          python - <<'PY' >> $GITHUB_OUTPUT
+          import yaml, json
+          with open("models.yaml") as f:
+              data = yaml.safe_load(f)
+          enabled = [m for m in data["models"] if m.get("enabled", True)]
+          rows = [{"id": m["id"]} for m in enabled]
+          print(f"matrix={json.dumps({'include': rows})}")
+          print(f"count={len(rows)}")
+          PY
+
+  health_check:
+    name: Health check ${{ matrix.id }}
+    needs: setup
+    if: needs.setup.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -q yfinance pandas numpy
+      - run: pip install -q yfinance pandas numpy
 
-      - name: Run signal monitor
+      - name: Run signal monitor for ${{ matrix.id }}
         id: monitor
-        env:
-          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          python scripts/signal_monitor.py --days 63 2>&1 | tee health_output.txt
-          if [ -f logs/health/health_status.json ]; then
-            STATUS=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print(d.get('overall_status','unknown'))")
-            TRAINING=$(python3 -c "import json; d=json.load(open('logs/health/health_status.json')); print('1' if d.get('training_recommended') else '0')")
+          python scripts/signal_monitor.py --model-id ${{ matrix.id }} --days 63 2>&1 | tee /tmp/health_output.txt
+          STATUS_FILE="logs/${{ matrix.id }}/health/health_status.json"
+          if [ -f "$STATUS_FILE" ]; then
+            STATUS=$(python3 -c "import json; print(json.load(open('$STATUS_FILE')).get('overall_status','unknown'))")
+            TRAINING=$(python3 -c "import json; print('1' if json.load(open('$STATUS_FILE')).get('training_recommended') else '0')")
           else
-            STATUS="unknown"
-            TRAINING="0"
+            STATUS="unknown"; TRAINING="0"
           fi
-          echo "health_status=$STATUS"         >> $GITHUB_OUTPUT
+          echo "health_status=$STATUS" >> $GITHUB_OUTPUT
           echo "training_recommended=$TRAINING" >> $GITHUB_OUTPUT
-          echo "Overall status: $STATUS | Training recommended: $TRAINING"
-          exit 0
+          echo "[${{ matrix.id }}] $STATUS  retrain=$TRAINING"
 
-      - name: Commit health logs
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+      - name: Build issue body
+        if: steps.monitor.outputs.health_status == 'degraded' || (github.event.inputs.create_issue_on_warning == 'true' && steps.monitor.outputs.health_status == 'warning')
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add logs/health/ || true
-          if git diff --cached --quiet; then
-            echo "No health log changes to commit."
-          else
-            git commit -m "chore: update model health status [skip ci]"
-            git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:main
-          fi
+          STATUS_FILE="logs/${{ matrix.id }}/health/health_status.json"
+          python3 - <<PY > /tmp/issue_body.md
+          import json
+          d = json.load(open("$STATUS_FILE"))
+          status = d.get("overall_status", "unknown").upper()
+          alerts = d.get("alerts", [])
+          alerts_md = "\n".join(f"- ⚠️ {a}" for a in alerts) if alerts else "_(none)_"
+          ent  = d.get("action_entropy")
+          psh  = d.get("portfolio_sharpe_30d")
+          ssh  = d.get("spy_sharpe_30d")
+          print(f"""## Weekly Health Check — \`${{ matrix.id }}\`
 
-      - name: Upload health artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: health-report-${{ github.run_number }}
-          path: |
-            logs/health/health_status.json
-            health_output.txt
-          retention-days: 90
+          **Status:** {status}
+          **Action Entropy (30d):** {ent if ent is None else round(ent, 3)}
+          **Portfolio Sharpe (30d):** {psh if psh is None else round(psh, 3)}
+          **SPY Sharpe (30d):** {ssh if ssh is None else round(ssh, 3)}
 
-      - name: Write issue body script
-        if: >
-          steps.monitor.outputs.health_status == 'degraded' ||
-          steps.monitor.outputs.training_recommended == '1'
-        run: |
-          python3 - <<'PYEOF'
-          import json, sys
-          try:
-              h = json.load(open('logs/health/health_status.json'))
-          except Exception:
-              h = {}
+          **Alerts:**
+          {alerts_md}
 
-          status  = h.get('overall_status', 'unknown').upper()
-          alerts  = '\n'.join('- ' + a for a in h.get('alerts', [])) or '_(none)_'
-          entropy = str(round(h['action_entropy'], 3)) if h.get('action_entropy') is not None else 'N/A'
-          p_sh    = str(round(h['portfolio_sharpe_30d'], 3)) if h.get('portfolio_sharpe_30d') is not None else 'N/A'
-          s_sh    = str(round(h['spy_sharpe_30d'], 3))       if h.get('spy_sharpe_30d') is not None else 'N/A'
-          p_ret   = (str(round(h['portfolio_return_30d']*100,1))+'%') if h.get('portfolio_return_30d') is not None else 'N/A'
-          s_ret   = (str(round(h['spy_return_30d']*100,1))+'%')       if h.get('spy_return_30d') is not None else 'N/A'
-          top_act = h.get('top_action', 'N/A')
-          top_pct = (str(round(h['top_action_pct']*100))+'%') if h.get('top_action_pct') is not None else 'N/A'
+          **Recommendation:** {'Retrain this model now.' if d.get('training_recommended') else 'Continue monitoring.'}
 
-          retrain = (
-              'Retraining is recommended.\n\n'
-              '1. Open Colab notebook `vision_ichimoku_agentic.py`\n'
-              '2. Run all cells through **V10B** (BR-PPO tuning section)\n'
-              '3. Replace `artifacts/v10_bro_ppo_allocation_agent.zip` in this repo\n'
-              '4. Replace `artifacts/v10_bro_ppo_allocation_agent_metadata.json`\n'
-              '5. Commit and push'
-          ) if h.get('training_recommended') else 'Monitor the situation. No immediate retraining needed.'
+          **Retrain steps for \`${{ matrix.id }}\`:**
+          1. Open \`vision_ichimoku_agentic.py\` in Colab
+          2. Update \`CONFIG\` train/validation/test dates (roll forward)
+          3. Run all cells
+          4. Replace \`artifacts/${{ matrix.id }}/agent.zip\` + \`metadata.json\`
+          5. Push to main
 
-          title = 'BR-PPO Model Health: ' + status + ' -- Action required'
-          body  = '\n'.join([
-              '## BR-PPO Model Health Alert',
-              '',
-              '**Status:** `' + status + '`',
-              '',
-              '---',
-              '',
-              '### Key Metrics',
-              '',
-              '| Metric | Value |',
-              '|--------|-------|',
-              '| Action Entropy (21d) | ' + entropy + ' (1.0 = fully diverse) |',
-              '| Portfolio 30d Return | ' + p_ret + ' |',
-              '| SPY 30d Return | ' + s_ret + ' |',
-              '| Portfolio 30d Sharpe | ' + p_sh + ' |',
-              '| SPY 30d Sharpe | ' + s_sh + ' |',
-              '| Dominant Action | `' + top_act + '` (' + top_pct + ' of decisions) |',
-              '',
-              '---',
-              '',
-              '### Alerts',
-              '',
-              alerts,
-              '',
-              '---',
-              '',
-              '### Recommended Action',
-              '',
-              retrain,
-              '',
-              '---',
-              '',
-              '*Auto-created by health_monitor workflow. Close once resolved.*',
-          ])
+          *Auto-created by weekly health monitor.*
+          """)
+          PY
 
-          with open('issue_title.txt', 'w') as f:
-              f.write(title)
-          with open('issue_body.txt', 'w') as f:
-              f.write(body)
-          print('Issue content written.')
-          PYEOF
-
-      - name: Create or update degraded issue
-        if: >
-          steps.monitor.outputs.health_status == 'degraded' ||
-          steps.monitor.outputs.training_recommended == '1'
+      - name: Create / update issue (per-model)
+        if: steps.monitor.outputs.health_status == 'degraded' || (github.event.inputs.create_issue_on_warning == 'true' && steps.monitor.outputs.health_status == 'warning')
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GH_PAT }}
           script: |
             const fs = require('fs');
-            const title = fs.readFileSync('issue_title.txt', 'utf8').trim();
-            const body  = fs.readFileSync('issue_body.txt', 'utf8').trim();
-
+            const body = fs.readFileSync('/tmp/issue_body.md', 'utf8');
+            const modelId = '${{ matrix.id }}';
+            const titleTag = `BR-PPO Health [${modelId}]`;
             const open = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              state: 'open',
-              labels: 'model-health',
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'model-health',
             });
-
-            const existing = open.data.find(i => i.title.includes('BR-PPO Model Health'));
+            const existing = open.data.find(i => i.title.includes(titleTag));
             if (existing) {
               await github.rest.issues.createComment({
-                owner:        context.repo.owner,
-                repo:         context.repo.repo,
+                owner: context.repo.owner, repo: context.repo.repo,
                 issue_number: existing.number,
-                body:         'Health check update ' + new Date().toISOString().slice(0,10) + '\n\n' + body,
+                body: body,
               });
-              core.info('Updated existing issue #' + existing.number);
             } else {
-              const issue = await github.rest.issues.create({
-                owner:  context.repo.owner,
-                repo:   context.repo.repo,
-                title:  title,
-                body:   body,
-                labels: ['model-health', 'automated'],
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `🚨 ${titleTag} — ${'${{ steps.monitor.outputs.health_status }}'.toUpperCase()}`,
+                body: body,
+                labels: ['model-health', 'automated', `model:${modelId}`],
               });
-              core.info('Created issue #' + issue.data.number);
             }
-
-      - name: Create warning issue if requested
-        if: >
-          steps.monitor.outputs.health_status == 'warning' &&
-          github.event.inputs.create_issue_on_warning == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_PAT }}
-          script: |
-            const fs = require('fs');
-            const body = fs.readFileSync('issue_body.txt', 'utf8').trim();
-            await github.rest.issues.create({
-              owner:  context.repo.owner,
-              repo:   context.repo.repo,
-              title:  'BR-PPO Model Health: WARNING -- Monitor signals',
-              body:   body,
-              labels: ['model-health', 'automated'],
-            });
