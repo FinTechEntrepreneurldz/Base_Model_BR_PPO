@@ -171,6 +171,150 @@ def hex_to_rgba(hex_color, alpha=0.08):
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{alpha})"
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Performance statistics — mirrors notebook perf_stats() exactly
+# ──────────────────────────────────────────────────────────────────────────────
+
+def compute_perf_stats(daily_returns: pd.Series, min_obs: int = 5) -> dict:
+    """
+    Comprehensive performance statistics for a series of daily returns.
+
+    Returns a dict with: total_return, ann_return, ann_vol, sharpe, sortino,
+    calmar, max_dd, hit_rate, t_stat, profit_factor, avg_win, avg_loss,
+    win_loss_ratio, best_day, worst_day, n_days, n_win_days, n_loss_days,
+    longest_dd_days, current_dd, current_dd_days.
+    """
+    nan_result = dict(
+        total_return=np.nan, ann_return=np.nan, ann_vol=np.nan,
+        sharpe=np.nan, sortino=np.nan, calmar=np.nan, max_dd=np.nan,
+        hit_rate=np.nan, t_stat=np.nan, profit_factor=np.nan,
+        avg_win=np.nan, avg_loss=np.nan, win_loss_ratio=np.nan,
+        best_day=np.nan, worst_day=np.nan,
+        n_days=0, n_win_days=0, n_loss_days=0,
+        longest_dd_days=0, current_dd=np.nan, current_dd_days=0,
+    )
+
+    x = pd.Series(daily_returns).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(x) < min_obs:
+        nan_result["n_days"] = len(x)
+        return nan_result
+
+    eq = (1.0 + x).cumprod()
+    total_return = float(eq.iloc[-1] - 1.0)
+    ann_return = float(eq.iloc[-1] ** (252.0 / len(x)) - 1.0)
+    ann_vol = float(x.std() * np.sqrt(252)) if x.std() > 0 else np.nan
+    sharpe = float(x.mean() / x.std() * np.sqrt(252)) if x.std() > 0 else np.nan
+
+    downside = x[x < 0].std() * np.sqrt(252) if (x < 0).any() else np.nan
+    sortino = float(x.mean() * 252 / downside) if downside and downside > 0 else np.nan
+
+    t_stat = float(x.mean() / x.std() * np.sqrt(len(x))) if x.std() > 0 else np.nan
+
+    dd_series = (eq / eq.cummax() - 1.0)
+    max_dd = float(dd_series.min())
+    calmar = float(ann_return / abs(max_dd)) if max_dd < 0 else np.nan
+
+    hit_rate = float((x > 0).mean())
+    n_win_days = int((x > 0).sum())
+    n_loss_days = int((x < 0).sum())
+
+    wins = x[x > 0]
+    losses = x[x < 0]
+    avg_win = float(wins.mean()) if len(wins) else np.nan
+    avg_loss = float(losses.mean()) if len(losses) else np.nan
+    win_loss_ratio = float(abs(avg_win / avg_loss)) if (avg_loss and not pd.isna(avg_loss) and avg_loss != 0) else np.nan
+    profit_factor = float(wins.sum() / abs(losses.sum())) if losses.sum() != 0 else np.nan
+
+    best_day = float(x.max())
+    worst_day = float(x.min())
+
+    # Drawdown duration: longest run where dd_series < 0
+    in_dd = dd_series < 0
+    longest_dd = 0
+    cur_run = 0
+    for v in in_dd.values:
+        if v:
+            cur_run += 1
+            longest_dd = max(longest_dd, cur_run)
+        else:
+            cur_run = 0
+
+    # Current drawdown (from latest peak)
+    current_dd = float(dd_series.iloc[-1])
+    # Days since last all-time high
+    rev = dd_series.iloc[::-1]
+    current_dd_days = 0
+    for v in rev.values:
+        if v < 0:
+            current_dd_days += 1
+        else:
+            break
+
+    return dict(
+        total_return=total_return,
+        ann_return=ann_return,
+        ann_vol=ann_vol,
+        sharpe=sharpe,
+        sortino=sortino,
+        calmar=calmar,
+        max_dd=max_dd,
+        hit_rate=hit_rate,
+        t_stat=t_stat,
+        profit_factor=profit_factor,
+        avg_win=avg_win,
+        avg_loss=avg_loss,
+        win_loss_ratio=win_loss_ratio,
+        best_day=best_day,
+        worst_day=worst_day,
+        n_days=len(x),
+        n_win_days=n_win_days,
+        n_loss_days=n_loss_days,
+        longest_dd_days=longest_dd,
+        current_dd=current_dd,
+        current_dd_days=current_dd_days,
+    )
+
+
+@st.cache_data(ttl=900)  # 15 min cache for benchmark prices
+def fetch_benchmark_returns(ticker: str, start: str, end: str = None) -> pd.Series:
+    """Download benchmark daily returns from yfinance, indexed by UTC date."""
+    try:
+        import yfinance as yf
+        kwargs = dict(start=start, auto_adjust=True, progress=False)
+        if end:
+            kwargs["end"] = end
+        data = yf.download(ticker, **kwargs)
+        if data is None or data.empty:
+            return pd.Series(dtype=float)
+        close = data["Close"] if "Close" in data.columns else data.iloc[:, 0]
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        close.index = pd.to_datetime(close.index, utc=True)
+        rets = close.pct_change().dropna()
+        rets.name = ticker
+        return rets
+    except Exception:
+        return pd.Series(dtype=float)
+
+
+def fmt_metric(v, kind="num"):
+    """Format a metric value safely (handles NaN). kind: 'num', 'pct', 'ratio', 'days'."""
+    if v is None or (isinstance(v, float) and (pd.isna(v) or not np.isfinite(v))):
+        return "—"
+    try:
+        if kind == "pct":
+            return f"{float(v) * 100:+.2f}%"
+        if kind == "pct_unsigned":
+            return f"{float(v) * 100:.2f}%"
+        if kind == "ratio":
+            return f"{float(v):.2f}"
+        if kind == "days":
+            return f"{int(v):,}"
+        return f"{float(v):.3f}"
+    except Exception:
+        return "—"
+
 def metric_card(label, value, delta=None, delta_sign=None):
     """delta_sign: 'pos', 'neg', 'neu', or None"""
     delta_html = ""
@@ -397,103 +541,286 @@ with tab_overview:
 # ════════════════════════════════════════════════════════════════
 
 with tab_perf:
-    port     = data["portfolio"]
+    port      = data["portfolio"]
     decisions = data["decisions"]
 
-    st.markdown('<div class="section-header">Portfolio Value Over Time</div>', unsafe_allow_html=True)
-
     if port.empty:
-        st.info("No portfolio history yet.")
+        st.info("No portfolio history yet. Performance metrics populate after the first trading run.")
     else:
+        # ── Prep daily-return series from portfolio_value ──
         port_plot = port.copy()
         if "timestamp_utc" in port_plot.columns:
             port_plot["timestamp_utc"] = pd.to_datetime(port_plot["timestamp_utc"], utc=True)
-            port_plot = port_plot.sort_values("timestamp_utc").drop_duplicates("timestamp_utc")
+            port_plot = (port_plot.sort_values("timestamp_utc")
+                                  .drop_duplicates("timestamp_utc"))
+        port_plot["portfolio_value"] = pd.to_numeric(port_plot["portfolio_value"], errors="coerce")
+        port_plot = port_plot.dropna(subset=["portfolio_value"])
+        port_plot["daily_return"] = port_plot["portfolio_value"].pct_change()
+        peak = port_plot["portfolio_value"].cummax()
+        port_plot["drawdown"] = port_plot["portfolio_value"] / peak - 1
 
-        # Compute daily returns
-        if len(port_plot) > 1:
-            port_plot["daily_return"] = port_plot["portfolio_value"].pct_change()
-            port_plot["cum_return"]   = (1 + port_plot["daily_return"].fillna(0)).cumprod() - 1
+        # ── Period selector + benchmark toggle ──
+        ctrl_l, ctrl_m, ctrl_r = st.columns([2, 2, 3])
+        with ctrl_l:
+            period_choice = st.selectbox(
+                "Period",
+                options=["All Time", "Last 30 Days", "Last 90 Days", "Year-to-Date"],
+                index=0,
+                key="perf_period",
+            )
+        with ctrl_m:
+            bench_choice = st.selectbox(
+                "Benchmark",
+                options=["SPY", "QQQ", "RSP", "VTI", "None"],
+                index=0,
+                key="perf_bench",
+            )
 
-            # Running drawdown
-            peak = port_plot["portfolio_value"].cummax()
-            port_plot["drawdown"] = port_plot["portfolio_value"] / peak - 1
+        # ── Slice by period ──
+        x_vals_full = port_plot["timestamp_utc"]
+        ts_max = x_vals_full.max()
+        if period_choice == "Last 30 Days":
+            cutoff = ts_max - pd.Timedelta(days=30)
+            mask = x_vals_full >= cutoff
+        elif period_choice == "Last 90 Days":
+            cutoff = ts_max - pd.Timedelta(days=90)
+            mask = x_vals_full >= cutoff
+        elif period_choice == "Year-to-Date":
+            cutoff = pd.Timestamp(ts_max.year, 1, 1, tz="UTC")
+            mask = x_vals_full >= cutoff
+        else:
+            mask = pd.Series(True, index=port_plot.index)
 
-        # ── Performance metrics ──
-        if len(port_plot) > 1:
-            start_v   = port_plot["portfolio_value"].iloc[0]
-            end_v     = port_plot["portfolio_value"].iloc[-1]
-            total_ret = (end_v - start_v) / start_v * 100
-            max_dd    = port_plot["drawdown"].min() * 100
-            n_days    = (port_plot["timestamp_utc"].iloc[-1] - port_plot["timestamp_utc"].iloc[0]).days
-            ann_ret   = (((end_v / start_v) ** (365 / max(n_days, 1))) - 1) * 100 if n_days > 0 else 0
-            vol       = port_plot["daily_return"].std() * np.sqrt(252) * 100 if "daily_return" in port_plot.columns else 0
-            sharpe    = ann_ret / vol if vol > 0 else 0
+        port_window = port_plot.loc[mask].copy()
+        # Recompute drawdown within the window so the metric reflects the period
+        if not port_window.empty:
+            peak_w = port_window["portfolio_value"].cummax()
+            port_window["drawdown"] = port_window["portfolio_value"] / peak_w - 1
+            port_window["daily_return"] = port_window["portfolio_value"].pct_change()
 
-            m1, m2, m3, m4 = st.columns(4)
-            with m1:
-                sign = "pos" if total_ret >= 0 else "neg"
-                metric_card("Total Return", f"{'+' if total_ret>=0 else ''}{total_ret:.2f}%",
-                            delta_sign=sign)
-            with m2:
-                metric_card("Ann. Return (proj)", f"{ann_ret:+.2f}%",
-                            delta=f"Over {n_days} days",
-                            delta_sign="pos" if ann_ret >= 0 else "neg")
-            with m3:
-                metric_card("Max Drawdown", f"{max_dd:.2f}%", delta_sign="neg")
-            with m4:
-                metric_card("Sharpe (proj)", f"{sharpe:.2f}")
-
-            st.markdown("")
-
-        # ── Portfolio value chart ──
-        fig = go.Figure()
-        x_vals = port_plot["timestamp_utc"] if "timestamp_utc" in port_plot.columns else port_plot.index
-        y_vals = port_plot["portfolio_value"]
-        color  = PALETTE["green"] if y_vals.iloc[-1] >= y_vals.iloc[0] else PALETTE["red"]
-
-        fig.add_trace(go.Scatter(
-            x=x_vals, y=y_vals,
-            mode="lines+markers",
-            line=dict(color=color, width=2),
-            fill="tozeroy", fillcolor=hex_to_rgba(color, 0.09),
-            marker=dict(size=4, color=color),
-            name="Portfolio Value",
-            hovertemplate="$%{y:,.2f}<br>%{x}<extra></extra>",
-        ))
-
-        # Action annotations
-        if not decisions.empty and "action" in decisions.columns and "timestamp_utc" in decisions.columns:
-            decisions_plot = decisions.copy()
-            decisions_plot["timestamp_utc"] = pd.to_datetime(decisions_plot["timestamp_utc"], utc=True)
-            for _, row in decisions_plot.tail(30).iterrows():
-                fig.add_vline(
-                    x=row["timestamp_utc"],
-                    line_dash="dot",
-                    line_color=ACTION_COLORS.get(str(row["action"]).lower(), "#8892a4"),
-                    line_width=1,
-                    opacity=0.5,
+        # ── Compute portfolio + benchmark statistics ──
+        if not port_window.empty:
+            port_returns = port_window["daily_return"].dropna()
+            if len(port_returns) > 0:
+                port_returns.index = pd.to_datetime(
+                    port_window.loc[port_returns.index, "timestamp_utc"], utc=True
                 )
+        else:
+            port_returns = pd.Series(dtype=float)
 
-        fig.update_layout(
-            height=350,
-            margin=dict(l=0, r=0, t=16, b=0),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(showgrid=False, color=PALETTE["muted"]),
-            yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"],
-                       tickprefix="$", tickformat=",.0f"),
-            showlegend=False,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        port_stats = compute_perf_stats(port_returns)
+
+        bench_stats = None
+        bench_returns = pd.Series(dtype=float)
+        if bench_choice != "None" and not port_window.empty:
+            start_str = port_window["timestamp_utc"].min().strftime("%Y-%m-%d")
+            bench_returns = fetch_benchmark_returns(bench_choice, start=start_str)
+            if not bench_returns.empty:
+                # Reindex onto the portfolio observation dates
+                bench_aligned = bench_returns.reindex(port_returns.index, method="ffill").dropna()
+                bench_stats = compute_perf_stats(bench_aligned)
+
+        # ── Performance metrics: 3 rows of KPIs ──
+        st.markdown('<div class="section-header">Risk-Adjusted Performance</div>', unsafe_allow_html=True)
+
+        # Row 1 — return / volatility
+        r1c1, r1c2, r1c3, r1c4 = st.columns(4)
+        with r1c1:
+            tr = port_stats["total_return"]
+            metric_card(
+                "Total Return",
+                fmt_metric(tr, "pct"),
+                delta=f"{port_stats['n_days']} obs",
+                delta_sign="pos" if (tr or 0) >= 0 else "neg",
+            )
+        with r1c2:
+            ar = port_stats["ann_return"]
+            sub = (f"vs {bench_choice}: {fmt_metric(bench_stats['ann_return'], 'pct')}"
+                   if bench_stats else "annualised")
+            metric_card(
+                "Ann. Return",
+                fmt_metric(ar, "pct"),
+                delta=sub,
+                delta_sign="pos" if (ar or 0) >= 0 else "neg",
+            )
+        with r1c3:
+            av = port_stats["ann_vol"]
+            sub = (f"vs {bench_choice}: {fmt_metric(bench_stats['ann_vol'], 'pct_unsigned')}"
+                   if bench_stats else "annualised")
+            metric_card("Ann. Volatility", fmt_metric(av, "pct_unsigned"), delta=sub, delta_sign="neu")
+        with r1c4:
+            ts = port_stats["t_stat"]
+            metric_card(
+                "T-Stat",
+                fmt_metric(ts, "ratio"),
+                delta="|t|>2 is significant",
+                delta_sign="pos" if (ts or 0) >= 2 else ("neg" if (ts or 0) <= -2 else "neu"),
+            )
+
+        # Row 2 — risk-adjusted ratios
+        r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+        with r2c1:
+            sh = port_stats["sharpe"]
+            sub = (f"vs {bench_choice}: {fmt_metric(bench_stats['sharpe'], 'ratio')}"
+                   if bench_stats else "")
+            sign = "pos" if (sh or 0) >= 1 else ("neu" if (sh or 0) >= 0 else "neg")
+            metric_card("Sharpe Ratio", fmt_metric(sh, "ratio"), delta=sub or "annualised", delta_sign=sign)
+        with r2c2:
+            so = port_stats["sortino"]
+            sub = (f"vs {bench_choice}: {fmt_metric(bench_stats['sortino'], 'ratio')}"
+                   if bench_stats else "")
+            sign = "pos" if (so or 0) >= 1 else ("neu" if (so or 0) >= 0 else "neg")
+            metric_card("Sortino Ratio", fmt_metric(so, "ratio"), delta=sub or "downside-only", delta_sign=sign)
+        with r2c3:
+            ca = port_stats["calmar"]
+            sub = (f"vs {bench_choice}: {fmt_metric(bench_stats['calmar'], 'ratio')}"
+                   if bench_stats else "")
+            sign = "pos" if (ca or 0) >= 1 else ("neu" if (ca or 0) >= 0 else "neg")
+            metric_card("Calmar Ratio", fmt_metric(ca, "ratio"), delta=sub or "return / |maxDD|", delta_sign=sign)
+        with r2c4:
+            md = port_stats["max_dd"]
+            sub = (f"vs {bench_choice}: {fmt_metric(bench_stats['max_dd'], 'pct_unsigned')}"
+                   if bench_stats else f"{port_stats['longest_dd_days']} day max duration")
+            metric_card("Max Drawdown", fmt_metric(md, "pct_unsigned"), delta=sub, delta_sign="neg")
+
+        # Row 3 — win rate & trade economics
+        r3c1, r3c2, r3c3, r3c4 = st.columns(4)
+        with r3c1:
+            hr = port_stats["hit_rate"]
+            wd, ld = port_stats["n_win_days"], port_stats["n_loss_days"]
+            metric_card(
+                "Hit Rate",
+                fmt_metric(hr, "pct_unsigned"),
+                delta=f"{wd} up days / {ld} down days",
+                delta_sign="pos" if (hr or 0) >= 0.5 else "neg",
+            )
+        with r3c2:
+            wlr = port_stats["win_loss_ratio"]
+            avg_w = port_stats["avg_win"]
+            avg_l = port_stats["avg_loss"]
+            sub = (f"avg win {fmt_metric(avg_w, 'pct')} / loss {fmt_metric(avg_l, 'pct')}"
+                   if not pd.isna(avg_w) and not pd.isna(avg_l) else "win vs loss size")
+            metric_card("Win/Loss Ratio", fmt_metric(wlr, "ratio"), delta=sub,
+                        delta_sign="pos" if (wlr or 0) >= 1 else "neg")
+        with r3c3:
+            pf = port_stats["profit_factor"]
+            metric_card(
+                "Profit Factor",
+                fmt_metric(pf, "ratio"),
+                delta="gross wins / gross losses",
+                delta_sign="pos" if (pf or 0) >= 1.5 else ("neu" if (pf or 0) >= 1 else "neg"),
+            )
+        with r3c4:
+            cdd = port_stats["current_dd"]
+            cdd_days = port_stats["current_dd_days"]
+            sub = f"{cdd_days} days off ATH" if cdd_days > 0 else "at all-time high"
+            metric_card("Current Drawdown", fmt_metric(cdd, "pct_unsigned"), delta=sub,
+                        delta_sign="neg" if (cdd or 0) < -0.001 else "pos")
+
+        # Row 4 — extremes
+        r4c1, r4c2, r4c3, r4c4 = st.columns(4)
+        with r4c1:
+            metric_card("Best Day", fmt_metric(port_stats["best_day"], "pct"), delta_sign="pos")
+        with r4c2:
+            metric_card("Worst Day", fmt_metric(port_stats["worst_day"], "pct"), delta_sign="neg")
+        with r4c3:
+            metric_card(
+                "Longest Drawdown",
+                f"{port_stats['longest_dd_days']} days",
+                delta="consecutive below ATH",
+                delta_sign="neu",
+            )
+        with r4c4:
+            obs = port_stats["n_days"]
+            metric_card("Observations", f"{obs:,}", delta=f"period: {period_choice}", delta_sign="neu")
+
+        st.markdown("---")
+
+        # ── Portfolio value chart with action annotations ──
+        st.markdown('<div class="section-header">Portfolio Value</div>', unsafe_allow_html=True)
+        fig = go.Figure()
+        x_vals = port_window["timestamp_utc"] if not port_window.empty else port_plot["timestamp_utc"]
+        y_vals = port_window["portfolio_value"] if not port_window.empty else port_plot["portfolio_value"]
+
+        if len(y_vals) > 0:
+            color = PALETTE["green"] if y_vals.iloc[-1] >= y_vals.iloc[0] else PALETTE["red"]
+            fig.add_trace(go.Scatter(
+                x=x_vals, y=y_vals,
+                mode="lines+markers",
+                line=dict(color=color, width=2),
+                fill="tozeroy", fillcolor=hex_to_rgba(color, 0.09),
+                marker=dict(size=4, color=color),
+                name="Portfolio",
+                hovertemplate="$%{y:,.2f}<br>%{x}<extra></extra>",
+            ))
+
+            # Action annotations
+            if not decisions.empty and "action" in decisions.columns and "timestamp_utc" in decisions.columns:
+                decisions_plot = decisions.copy()
+                decisions_plot["timestamp_utc"] = pd.to_datetime(decisions_plot["timestamp_utc"], utc=True)
+                xmin, xmax = x_vals.min(), x_vals.max()
+                decisions_plot = decisions_plot[
+                    (decisions_plot["timestamp_utc"] >= xmin) &
+                    (decisions_plot["timestamp_utc"] <= xmax)
+                ]
+                for _, row in decisions_plot.tail(30).iterrows():
+                    fig.add_vline(
+                        x=row["timestamp_utc"],
+                        line_dash="dot",
+                        line_color=ACTION_COLORS.get(str(row["action"]).lower(), "#8892a4"),
+                        line_width=1,
+                        opacity=0.5,
+                    )
+
+            fig.update_layout(
+                height=320,
+                margin=dict(l=0, r=0, t=16, b=0),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(showgrid=False, color=PALETTE["muted"]),
+                yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"],
+                           tickprefix="$", tickformat=",.0f"),
+                showlegend=False,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # ── Cumulative return vs benchmark ──
+        if not port_returns.empty and bench_stats is not None and not bench_returns.empty:
+            st.markdown(f'<div class="section-header">Cumulative Return vs {bench_choice}</div>',
+                        unsafe_allow_html=True)
+            port_cum = (1 + port_returns).cumprod() - 1
+            bench_aligned = bench_returns.reindex(port_returns.index, method="ffill").dropna()
+            bench_cum = (1 + bench_aligned).cumprod() - 1
+
+            fig_cum = go.Figure()
+            fig_cum.add_trace(go.Scatter(
+                x=port_cum.index, y=port_cum.values * 100,
+                mode="lines", line=dict(color=PALETTE["blue"], width=2.5),
+                name="Portfolio", hovertemplate="%{y:.2f}%<extra>Portfolio</extra>",
+            ))
+            fig_cum.add_trace(go.Scatter(
+                x=bench_cum.index, y=bench_cum.values * 100,
+                mode="lines", line=dict(color=PALETTE["gold"], width=2, dash="dash"),
+                name=bench_choice, hovertemplate="%{y:.2f}%<extra>" + bench_choice + "</extra>",
+            ))
+            fig_cum.update_layout(
+                height=300,
+                margin=dict(l=0, r=0, t=8, b=0),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(showgrid=False, color=PALETTE["muted"]),
+                yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"], ticksuffix="%"),
+                legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=PALETTE["muted"])),
+            )
+            st.plotly_chart(fig_cum, use_container_width=True)
 
         # ── Drawdown chart ──
-        if "drawdown" in port_plot.columns and len(port_plot) > 1:
+        if "drawdown" in port_window.columns and len(port_window) > 1:
             st.markdown('<div class="section-header">Drawdown</div>', unsafe_allow_html=True)
             fig2 = go.Figure()
             fig2.add_trace(go.Scatter(
-                x=x_vals,
-                y=port_plot["drawdown"] * 100,
+                x=port_window["timestamp_utc"],
+                y=port_window["drawdown"] * 100,
                 mode="lines",
                 fill="tozeroy",
                 line=dict(color=PALETTE["red"], width=1.5),
@@ -506,15 +833,103 @@ with tab_perf:
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(showgrid=False, color=PALETTE["muted"]),
-                yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"],
-                           ticksuffix="%"),
+                yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"], ticksuffix="%"),
                 showlegend=False,
             )
             st.plotly_chart(fig2, use_container_width=True)
 
-    # ── Action history ──
+        # ── Rolling Sharpe (21-day window) ──
+        if len(port_returns) >= 21:
+            st.markdown('<div class="section-header">Rolling 21-Day Sharpe Ratio</div>',
+                        unsafe_allow_html=True)
+            roll_mean = port_returns.rolling(21).mean()
+            roll_std  = port_returns.rolling(21).std()
+            roll_sharpe = (roll_mean / roll_std * np.sqrt(252)).dropna()
+
+            fig_rs = go.Figure()
+            fig_rs.add_hline(y=0, line_dash="solid", line_color=PALETTE["muted"], line_width=1)
+            fig_rs.add_hline(y=1, line_dash="dot", line_color=PALETTE["green"], opacity=0.5,
+                             annotation_text="Sharpe = 1", annotation_position="right")
+            fig_rs.add_trace(go.Scatter(
+                x=roll_sharpe.index, y=roll_sharpe.values,
+                mode="lines",
+                line=dict(color=PALETTE["blue"], width=2),
+                fill="tozeroy",
+                fillcolor=hex_to_rgba(PALETTE["blue"], 0.10),
+                hovertemplate="%{y:.2f}<br>%{x}<extra></extra>",
+            ))
+            fig_rs.update_layout(
+                height=220,
+                margin=dict(l=0, r=0, t=8, b=0),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(showgrid=False, color=PALETTE["muted"]),
+                yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"]),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_rs, use_container_width=True)
+
+        # ── Monthly returns heatmap ──
+        if len(port_returns) >= 20:
+            st.markdown('<div class="section-header">Monthly Returns Heatmap</div>',
+                        unsafe_allow_html=True)
+            # "ME" (month-end) is the modern label; fall back to "M" on older pandas.
+            try:
+                monthly = (1 + port_returns).resample("ME").prod() - 1
+            except (ValueError, KeyError):
+                monthly = (1 + port_returns).resample("M").prod() - 1
+            if len(monthly) >= 1:
+                df_m = pd.DataFrame({
+                    "year":  monthly.index.year,
+                    "month": monthly.index.month,
+                    "ret":   monthly.values * 100,
+                })
+                pivot = df_m.pivot(index="year", columns="month", values="ret")
+                # Ensure all 12 columns exist
+                for m in range(1, 13):
+                    if m not in pivot.columns:
+                        pivot[m] = np.nan
+                pivot = pivot[sorted(pivot.columns)]
+                month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+                # Text labels (NaN → blank). Use .map for pandas>=2.1, fall back to .applymap.
+                _fmt_cell = lambda v: "" if pd.isna(v) else f"{v:+.1f}%"
+                try:
+                    text_vals = pivot.map(_fmt_cell)
+                except AttributeError:
+                    text_vals = pivot.applymap(_fmt_cell)
+
+                fig_hm = go.Figure(data=go.Heatmap(
+                    z=pivot.values,
+                    x=month_names,
+                    y=[str(y) for y in pivot.index],
+                    text=text_vals.values,
+                    texttemplate="%{text}",
+                    textfont=dict(color="#e8eaf0", size=11),
+                    colorscale=[
+                        [0.0, PALETTE["red"]],
+                        [0.5, "#1a1f2e"],
+                        [1.0, PALETTE["green"]],
+                    ],
+                    zmid=0,
+                    hovertemplate="%{y} %{x}: %{z:+.2f}%<extra></extra>",
+                    colorbar=dict(title="%", tickfont=dict(color=PALETTE["muted"])),
+                ))
+                fig_hm.update_layout(
+                    height=max(180, 60 + 32 * len(pivot.index)),
+                    margin=dict(l=0, r=0, t=8, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis=dict(color=PALETTE["muted"], side="top"),
+                    yaxis=dict(color=PALETTE["muted"]),
+                )
+                st.plotly_chart(fig_hm, use_container_width=True)
+
+    # ── Action distribution (kept as-is, useful at-a-glance) ──
     if not decisions.empty and "action" in decisions.columns:
-        st.markdown('<div class="section-header">Action Distribution</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Action Distribution (All Time)</div>',
+                    unsafe_allow_html=True)
         action_counts = decisions["action"].value_counts().reset_index()
         action_counts.columns = ["action", "count"]
         colors = [ACTION_COLORS.get(a, "#8892a4") for a in action_counts["action"]]
@@ -535,6 +950,26 @@ with tab_perf:
             showlegend=False,
         )
         st.plotly_chart(fig3, use_container_width=True)
+
+    # ── Footnote on metric definitions ──
+    with st.expander("ℹ️ Metric definitions"):
+        st.markdown("""
+- **Total Return** — cumulative return over the selected period.
+- **Annualised Return** — geometric (CAGR-style) annualisation: `(1 + total)^(252/n) − 1`.
+- **Annualised Volatility** — daily return std × √252.
+- **Sharpe Ratio** — daily mean / daily std × √252 (rf assumed 0). Above 1 is generally considered good for an equity strategy.
+- **Sortino Ratio** — uses only the std of negative returns in the denominator. Penalises downside only.
+- **Calmar Ratio** — annualised return divided by absolute max drawdown. Captures return per unit of worst-case pain.
+- **Max Drawdown** — largest peak-to-trough decline within the period.
+- **Hit Rate** — share of days with positive returns.
+- **Win/Loss Ratio** — average up-day return divided by absolute average down-day return. >1 means winners outsize losers on average.
+- **Profit Factor** — sum of all positive returns divided by absolute sum of all negative returns.
+- **T-Stat** — `mean / std × √n` on daily returns. Rough significance test that returns ≠ 0; |t| > 2 is conventional.
+- **Longest Drawdown** — most consecutive trading days spent below the running peak.
+- **Current Drawdown** — distance from the most recent all-time high in the period.
+
+Note: these metrics are computed off the daily portfolio-value series logged after each run, so reliability improves once you have several weeks of paper trading data.
+""")
 
 
 # ════════════════════════════════════════════════════════════════
