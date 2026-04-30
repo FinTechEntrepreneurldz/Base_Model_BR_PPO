@@ -190,6 +190,92 @@ def _load_health_status(log_dir: Path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Multi-repo loaders — fetch a model's logs from raw.githubusercontent.com
+# ──────────────────────────────────────────────────────────────────────────────
+# Each model in models.yaml may live in its own GitHub repo. The dashboard reads
+# its committed log CSVs/JSON directly from raw.githubusercontent.com (no auth
+# needed for public repos). Falls back to the local repo for legacy models that
+# don't specify a `repo` field in the registry.
+
+RAW_BASE = "https://raw.githubusercontent.com"
+
+
+def _model_logs_url(model: dict, relpath: str) -> str | None:
+    """Build the raw.githubusercontent.com URL for a model's log file.
+
+    Returns None if the model has no `repo` field (caller should use local path).
+    """
+    repo = model.get("repo")
+    if not repo:
+        return None
+    branch = model.get("branch", "main")
+    logs_path = (model.get("logs_path") or f"logs/{model['id']}").strip("/")
+    relpath = relpath.strip("/")
+    return f"{RAW_BASE}/{repo}/{branch}/{logs_path}/{relpath}"
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _load_csv_url(url: str) -> pd.DataFrame:
+    """Read a CSV directly from a URL. Returns empty DataFrame on any failure."""
+    try:
+        df = pd.read_csv(url)
+        if "timestamp_utc" in df.columns:
+            df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True, errors="coerce")
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _load_json_url(url: str) -> dict:
+    """Fetch a JSON document from a URL. Returns {} on any failure."""
+    try:
+        import requests
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return {}
+
+
+def load_model_csv(model: dict, relpath: str) -> pd.DataFrame:
+    """Load a CSV under a model's logs_path (URL if `repo` set, else local file)."""
+    url = _model_logs_url(model, relpath)
+    if url is not None:
+        return _load_csv_url(url)
+    # Local fallback (legacy: model lives in this same repo, no repo field)
+    logs_path = model.get("logs_path") or f"logs/{model['id']}"
+    return load_csv(REPO_ROOT / logs_path / relpath)
+
+
+def load_model_health(model: dict) -> dict:
+    """Load a model's health_status.json (URL or local)."""
+    url = _model_logs_url(model, "health/health_status.json")
+    if url is not None:
+        return _load_json_url(url)
+    logs_path = model.get("logs_path") or f"logs/{model['id']}"
+    return _load_health_status(REPO_ROOT / logs_path)
+
+
+def load_all_for_model(model: dict) -> dict:
+    """Mirror of load_all() but for a model dict (works across repos)."""
+    return {
+        "decisions":        load_model_csv(model, "decisions/decisions.csv"),
+        "latest_decision":  load_model_csv(model, "decisions/latest_decision.csv"),
+        "portfolio":        load_model_csv(model, "portfolio/portfolio.csv"),
+        "target_weights":   load_model_csv(model, "target_weights/latest_target_weights.csv"),
+        "tw_history":       load_model_csv(model, "target_weights/target_weights.csv"),
+        "positions":        load_model_csv(model, "positions/latest_positions.csv"),
+        "planned_orders":   load_model_csv(model, "orders/latest_planned_orders.csv"),
+        "submitted_orders": load_model_csv(model, "orders/latest_submitted_orders.csv"),
+        "orders_history":   load_model_csv(model, "orders/submitted_orders.csv"),
+        "signal_history":   load_model_csv(model, "health/signal_history.csv"),
+        "health_status":    load_model_health(model),
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -451,15 +537,22 @@ with st.sidebar:
         key="selected_model",
     )
 
-    # Resolve LOG_DIR for the rest of the page based on selection
-    LOG_DIR = LOGS_ROOT / selected_id
-    st.caption(f"Showing: `logs/{selected_id}/`")
+    # Resolve the full model dict (carries repo/branch/logs_path)
+    selected_model = next((m for m in registry if m["id"] == selected_id), registry[0])
+
+    # Caption shows where the data is being fetched from
+    _src_repo = selected_model.get("repo")
+    _src_path = selected_model.get("logs_path") or f"logs/{selected_id}"
+    if _src_repo:
+        st.caption(f"Source: `{_src_repo}` / `{_src_path}`")
+    else:
+        st.caption(f"Showing: `{_src_path}/`")
 
     if st.button("🔄 Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-    data = load_all(LOG_DIR)
+    data = load_all_for_model(selected_model)
     dec  = data["latest_decision"]
     port = data["portfolio"]
 
@@ -558,13 +651,13 @@ with tab_compare:
         all_data = {}
         for m in registry:
             mid = m["id"]
-            mdir = LOGS_ROOT / mid
             all_data[mid] = {
-                "name": m.get("name", mid),
-                "color": m.get("color", "#4c9eff"),
-                "portfolio":   load_csv(mdir / "portfolio"  / "portfolio.csv"),
-                "decisions":   load_csv(mdir / "decisions"  / "decisions.csv"),
-                "health":      _load_health_status(mdir),
+                "name":      m.get("name", mid),
+                "color":     m.get("color", "#4c9eff"),
+                "model":     m,
+                "portfolio": load_model_csv(m, "portfolio/portfolio.csv"),
+                "decisions": load_model_csv(m, "decisions/decisions.csv"),
+                "health":    load_model_health(m),
             }
 
         # ── Equity curves overlay ──
@@ -670,7 +763,7 @@ with tab_compare:
         st.markdown("### Latest action per model")
         action_cols = st.columns(min(len(all_data), 4) or 1)
         for i, (mid, d) in enumerate(all_data.items()):
-            dec_latest = load_csv(LOGS_ROOT / mid / "decisions" / "latest_decision.csv")
+            dec_latest = load_model_csv(d["model"], "decisions/latest_decision.csv")
             with action_cols[i % len(action_cols)]:
                 if dec_latest.empty:
                     metric_card(d["name"], "no data")
