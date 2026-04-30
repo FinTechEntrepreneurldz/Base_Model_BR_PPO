@@ -278,7 +278,11 @@ def compute_perf_stats(daily_returns: pd.Series, min_obs: int = 5) -> dict:
 
 @st.cache_data(ttl=900)  # 15 min cache for benchmark prices
 def fetch_benchmark_returns(ticker: str, start: str, end: str = None) -> pd.Series:
-    """Download benchmark daily returns from yfinance, indexed by UTC date."""
+    """
+    Download benchmark daily returns from yfinance, indexed by NAIVE calendar date
+    (no timezone, no time-of-day) so it can be safely aligned with portfolio runs
+    that happen at any time during the trading day.
+    """
     try:
         import yfinance as yf
         kwargs = dict(start=start, auto_adjust=True, progress=False)
@@ -287,15 +291,65 @@ def fetch_benchmark_returns(ticker: str, start: str, end: str = None) -> pd.Seri
         data = yf.download(ticker, **kwargs)
         if data is None or data.empty:
             return pd.Series(dtype=float)
-        close = data["Close"] if "Close" in data.columns else data.iloc[:, 0]
+
+        # Handle BOTH flat columns (old yfinance) and MultiIndex columns (new yfinance)
+        if isinstance(data.columns, pd.MultiIndex):
+            try:
+                close = data[("Close", ticker)]
+            except KeyError:
+                # fallback: any column with "Close" in its top level
+                lvl0 = data.columns.get_level_values(0)
+                if "Close" in lvl0:
+                    close = data["Close"]
+                    if isinstance(close, pd.DataFrame):
+                        close = close.iloc[:, 0]
+                else:
+                    close = data.iloc[:, 0]
+        else:
+            close = data["Close"] if "Close" in data.columns else data.iloc[:, 0]
+
         if isinstance(close, pd.DataFrame):
             close = close.iloc[:, 0]
-        close.index = pd.to_datetime(close.index, utc=True)
+        close = pd.Series(close).dropna().astype(float)
+        if close.empty:
+            return pd.Series(dtype=float)
+
+        # Normalise to naive calendar date (drop tz + time component)
+        idx = pd.to_datetime(close.index)
+        try:
+            idx = idx.tz_convert(None)  # tz-aware → naive
+        except (TypeError, AttributeError):
+            try:
+                idx = idx.tz_localize(None)  # naive but with tz info? strip
+            except (TypeError, AttributeError):
+                pass
+        close.index = pd.to_datetime(idx).normalize()
+
         rets = close.pct_change().dropna()
         rets.name = ticker
         return rets
     except Exception:
         return pd.Series(dtype=float)
+
+
+def _to_date_index(s: pd.Series) -> pd.Series:
+    """Strip timezone + time-of-day from a Series index, returning a naive
+    daily-resolution index. Safe to call on either tz-aware or naive series."""
+    if s is None or len(s) == 0:
+        return s
+    out = s.copy()
+    idx = pd.to_datetime(out.index)
+    try:
+        idx = idx.tz_convert(None)
+    except (TypeError, AttributeError):
+        try:
+            idx = idx.tz_localize(None)
+        except (TypeError, AttributeError):
+            pass
+    out.index = pd.to_datetime(idx).normalize()
+    # If multiple intra-day rows collapse onto the same date, keep the last.
+    out = out[~out.index.duplicated(keep="last")]
+    return out
 
 
 def fmt_metric(v, kind="num"):
@@ -612,13 +666,19 @@ with tab_perf:
 
         bench_stats = None
         bench_returns = pd.Series(dtype=float)
+        bench_load_ok = False
         if bench_choice != "None" and not port_window.empty:
             start_str = port_window["timestamp_utc"].min().strftime("%Y-%m-%d")
             bench_returns = fetch_benchmark_returns(bench_choice, start=start_str)
             if not bench_returns.empty:
-                # Reindex onto the portfolio observation dates
-                bench_aligned = bench_returns.reindex(port_returns.index, method="ffill").dropna()
-                bench_stats = compute_perf_stats(bench_aligned)
+                bench_load_ok = True
+                # Align on calendar date (drop time + tz from both sides)
+                port_returns_d = _to_date_index(port_returns)
+                bench_aligned = bench_returns.reindex(
+                    port_returns_d.index, method="ffill"
+                ).dropna()
+                if not bench_aligned.empty:
+                    bench_stats = compute_perf_stats(bench_aligned)
 
         # ── Performance metrics: 3 rows of KPIs ──
         st.markdown('<div class="section-header">Risk-Adjusted Performance</div>', unsafe_allow_html=True)
@@ -785,34 +845,60 @@ with tab_perf:
             st.plotly_chart(fig, use_container_width=True)
 
         # ── Cumulative return vs benchmark ──
-        if not port_returns.empty and bench_stats is not None and not bench_returns.empty:
+        if not port_returns.empty and bench_choice != "None":
             st.markdown(f'<div class="section-header">Cumulative Return vs {bench_choice}</div>',
                         unsafe_allow_html=True)
-            port_cum = (1 + port_returns).cumprod() - 1
-            bench_aligned = bench_returns.reindex(port_returns.index, method="ffill").dropna()
-            bench_cum = (1 + bench_aligned).cumprod() - 1
 
-            fig_cum = go.Figure()
-            fig_cum.add_trace(go.Scatter(
-                x=port_cum.index, y=port_cum.values * 100,
-                mode="lines", line=dict(color=PALETTE["blue"], width=2.5),
-                name="Portfolio", hovertemplate="%{y:.2f}%<extra>Portfolio</extra>",
-            ))
-            fig_cum.add_trace(go.Scatter(
-                x=bench_cum.index, y=bench_cum.values * 100,
-                mode="lines", line=dict(color=PALETTE["gold"], width=2, dash="dash"),
-                name=bench_choice, hovertemplate="%{y:.2f}%<extra>" + bench_choice + "</extra>",
-            ))
-            fig_cum.update_layout(
-                height=300,
-                margin=dict(l=0, r=0, t=8, b=0),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                xaxis=dict(showgrid=False, color=PALETTE["muted"]),
-                yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"], ticksuffix="%"),
-                legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=PALETTE["muted"])),
-            )
-            st.plotly_chart(fig_cum, use_container_width=True)
+            if not bench_load_ok:
+                st.info(f"Could not load {bench_choice} prices from yfinance. "
+                        "Try refreshing in a minute, or pick a different benchmark.")
+            else:
+                # Both series on naive calendar-date index
+                port_d  = _to_date_index(port_returns)
+                bench_d = bench_returns.reindex(port_d.index, method="ffill").dropna()
+
+                # Restrict portfolio side to the dates we actually have benchmark for,
+                # so both lines start at the same x-value (zero).
+                common_idx = port_d.index.intersection(bench_d.index)
+                if len(common_idx) >= 2:
+                    port_d  = port_d.loc[common_idx]
+                    bench_d = bench_d.loc[common_idx]
+
+                    port_cum  = (1 + port_d).cumprod()  - 1
+                    bench_cum = (1 + bench_d).cumprod() - 1
+
+                    fig_cum = go.Figure()
+                    fig_cum.add_trace(go.Scatter(
+                        x=port_cum.index, y=port_cum.values * 100,
+                        mode="lines+markers",
+                        line=dict(color=PALETTE["blue"], width=2.5),
+                        marker=dict(size=4),
+                        name="Portfolio",
+                        hovertemplate="%{y:.2f}%<extra>Portfolio</extra>",
+                    ))
+                    fig_cum.add_trace(go.Scatter(
+                        x=bench_cum.index, y=bench_cum.values * 100,
+                        mode="lines+markers",
+                        line=dict(color=PALETTE["gold"], width=2, dash="dash"),
+                        marker=dict(size=4),
+                        name=bench_choice,
+                        hovertemplate="%{y:.2f}%<extra>" + bench_choice + "</extra>",
+                    ))
+                    fig_cum.update_layout(
+                        height=320,
+                        margin=dict(l=0, r=0, t=8, b=0),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        xaxis=dict(showgrid=False, color=PALETTE["muted"]),
+                        yaxis=dict(showgrid=True, gridcolor="#1e2535", color=PALETTE["muted"], ticksuffix="%"),
+                        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=PALETTE["muted"]),
+                                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    )
+                    st.plotly_chart(fig_cum, use_container_width=True)
+                else:
+                    st.info(f"Need at least 2 overlapping trading days between your portfolio and "
+                            f"{bench_choice} to plot a comparison. You have {len(common_idx)} so far — "
+                            "the chart will appear once you have a few more daily logs.")
 
         # ── Drawdown chart ──
         if "drawdown" in port_window.columns and len(port_window) > 1:
