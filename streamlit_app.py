@@ -557,17 +557,21 @@ with st.sidebar:
     port = data["portfolio"]
 
     # Last run time
+    last_run = None
     if not dec.empty and "timestamp_utc" in dec.columns:
-        last_run = pd.to_datetime(dec["timestamp_utc"].iloc[-1], utc=True)
+        last_run = pd.to_datetime(dec["timestamp_utc"].iloc[-1], utc=True, errors="coerce")
+    if last_run is not None and pd.notna(last_run):
         now_utc  = datetime.now(timezone.utc)
-        delta_m  = int((now_utc - last_run).total_seconds() / 60)
+        delta_s  = (now_utc - last_run).total_seconds()
         st.markdown(f"**Last run:** {last_run.strftime('%b %d, %H:%M UTC')}")
-        if delta_m < 60:
-            st.markdown(f"*{delta_m} min ago*")
-        elif delta_m < 1440:
-            st.markdown(f"*{delta_m//60}h {delta_m%60}m ago*")
-        else:
-            st.markdown(f"*{delta_m//1440}d ago*")
+        if pd.notna(delta_s):
+            delta_m = int(delta_s / 60)
+            if delta_m < 60:
+                st.markdown(f"*{delta_m} min ago*")
+            elif delta_m < 1440:
+                st.markdown(f"*{delta_m//60}h {delta_m%60}m ago*")
+            else:
+                st.markdown(f"*{delta_m//1440}d ago*")
     else:
         st.markdown("**Last run:** No data yet")
 
