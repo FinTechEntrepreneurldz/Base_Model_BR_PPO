@@ -210,17 +210,28 @@ def main():
             })
 
         except Exception as exc:
-            print(f"  ERROR computing health for {mid}: {type(exc).__name__}: {exc}",
-                  file=sys.stderr)
-            # Write a failure JSON so the dashboard knows a check happened
+            import traceback
+            tb_str = traceback.format_exc()
+            print(f"  ERROR computing health for {mid}:", file=sys.stderr)
+            print(tb_str, file=sys.stderr)
+            # Find the deepest in-our-code frame so we can put it in the alert
+            tb_lines = tb_str.strip().splitlines()
+            our_frame = None
+            for line in tb_lines:
+                if "scripts/" in line and "File " in line:
+                    our_frame = line.strip()
             failure = {
                 "computed_at":     datetime.now(timezone.utc).isoformat(),
                 "lookback_days":   args.lookback_days,
                 "overall_status":  "unknown",
-                "alerts":          [f"Central monitor failed: {type(exc).__name__}: {exc}"],
+                "alerts":          [
+                    f"Central monitor failed: {type(exc).__name__}: {exc}",
+                    f"Top frame: {our_frame}" if our_frame else "Top frame: (unknown)",
+                ],
                 "n_decisions":     0,
                 "computed_by":     "central_health_monitor",
                 "source_repo":     repo,
+                "traceback":       tb_str,
             }
             write_health(mid, failure)
             summary.append({
