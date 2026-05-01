@@ -719,7 +719,9 @@ with tab_compare:
             for d in all_data.values():
                 p = d["portfolio"]
                 if not p.empty and "timestamp_utc" in p.columns:
-                    first_dates.append(pd.to_datetime(p["timestamp_utc"]).min())
+                    fd = pd.to_datetime(p["timestamp_utc"], errors="coerce").min()
+                    if pd.notna(fd):
+                        first_dates.append(fd)
             if first_dates:
                 start = min(first_dates).strftime("%Y-%m-%d")
                 spy = yf.download("SPY", start=start, progress=False, auto_adjust=True)["Close"]
@@ -983,8 +985,10 @@ with tab_perf:
         bench_returns = pd.Series(dtype=float)
         bench_load_ok = False
         if bench_choice != "None" and not port_window.empty:
-            start_str = port_window["timestamp_utc"].min().strftime("%Y-%m-%d")
-            bench_returns = fetch_benchmark_returns(bench_choice, start=start_str)
+            start_ts = pd.to_datetime(port_window["timestamp_utc"], errors="coerce").min()
+            if pd.notna(start_ts):
+                start_str = start_ts.strftime("%Y-%m-%d")
+                bench_returns = fetch_benchmark_returns(bench_choice, start=start_str)
             if not bench_returns.empty:
                 bench_load_ok = True
                 # Align on calendar date (drop time + tz from both sides)
@@ -1768,7 +1772,10 @@ with tab_health:
 
         try:
             import yfinance as yf
-            spy_data = yf.download("SPY", start=port_plot.index[0].strftime("%Y-%m-%d"), auto_adjust=True, progress=False)
+            start_idx = port_plot.index[0] if len(port_plot) else None
+            if start_idx is None or pd.isna(start_idx):
+                raise ValueError("no valid start date for SPY benchmark")
+            spy_data = yf.download("SPY", start=start_idx.strftime("%Y-%m-%d"), auto_adjust=True, progress=False)
             spy_close = spy_data["Close"] if "Close" in spy_data.columns else spy_data.iloc[:, 0]
             spy_close.index = pd.to_datetime(spy_close.index, utc=True)
             spy_norm = spy_close / spy_close.iloc[0]
