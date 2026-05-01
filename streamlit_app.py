@@ -216,9 +216,21 @@ def _model_logs_url(model: dict, relpath: str) -> str | None:
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _load_csv_url(url: str) -> pd.DataFrame:
-    """Read a CSV directly from a URL. Returns empty DataFrame on any failure."""
+    """Fetch a CSV from a URL via requests (more reliable than pd.read_csv on
+    Streamlit Cloud), parse with pandas, return empty DataFrame on any failure."""
     try:
-        df = pd.read_csv(url)
+        import io
+        import requests
+        # Cache-busting User-Agent and explicit no-cache so Streamlit Cloud
+        # doesn't get a stale CDN response after a fresh push to the model repo.
+        headers = {
+            "User-Agent": "streamlit-dashboard/1.0",
+            "Cache-Control": "no-cache",
+        }
+        r = requests.get(url, timeout=15, headers=headers)
+        if r.status_code != 200 or not r.text.strip():
+            return pd.DataFrame()
+        df = pd.read_csv(io.StringIO(r.text))
         if "timestamp_utc" in df.columns:
             df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True, errors="coerce")
         return df
