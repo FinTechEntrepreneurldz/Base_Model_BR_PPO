@@ -8,7 +8,7 @@ on:
       dry_run:
         description: "Dry run (do NOT submit orders)"
         required: false
-        default: "false"
+        default: "false"  
         type: choice
         options: ["true", "false"]
       only_model:
@@ -76,7 +76,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 1
 
       - name: Set up Python 3.11
@@ -179,7 +179,7 @@ jobs:
         if: steps.health.outputs.health_status == 'degraded'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GH_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const body = fs.readFileSync('/tmp/issue_body.md', 'utf8');
@@ -225,7 +225,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 1
 
       - name: Download all per-model log artifacts
