@@ -262,12 +262,47 @@ def load_model_csv(model: dict, relpath: str) -> pd.DataFrame:
 
 
 def load_model_health(model: dict) -> dict:
-    """Load a model's health_status.json (URL or local)."""
-    url = _model_logs_url(model, "health/health_status.json")
-    if url is not None:
-        return _load_json_url(url)
-    logs_path = model.get("logs_path") or f"logs/{model['id']}"
-    return _load_health_status(REPO_ROOT / logs_path)
+    """Load a model's health_status.json from the CENTRAL location.
+
+    Per the Option 2 architecture (see scripts/central_health_monitor.py),
+    health metrics for ALL models — even those whose trading logs live in
+    separate GitHub repos — are computed and stored centrally in this
+    dashboard repo at logs/<model_id>/health/health_status.json.
+
+    This single source of truth means the dashboard never needs to fetch
+    health from a model's own repo, eliminating per-repo schema drift.
+    """
+    central_path = REPO_ROOT / "logs" / model["id"] / "health" / "health_status.json"
+    if central_path.exists():
+        return _load_health_status(central_path.parent.parent)
+    return {}
+
+
+def _interpret_health(health_dict):
+    """Normalize a model's health_status.json into a (icon, color, label, is_pending) tuple.
+
+    The dashboard expects only {healthy, warning, degraded} as real statuses; any other
+    value (unknown, hold, empty, missing file) is treated as 'Pending first health check'.
+
+    'Pending' specifically means: the model exists but hasn't accumulated enough trading
+    days for a meaningful Sharpe / IC / drift signal (default threshold: n_decisions >= 5).
+    """
+    if not health_dict:
+        return ("\U0001f550", "#8892a4", "Pending first check", True)
+    overall = (health_dict or {}).get("overall_status", "unknown")
+    n_decisions = (health_dict or {}).get("n_decisions") or 0
+    # Insufficient history → always Pending regardless of stored status
+    if n_decisions < 5:
+        return ("\U0001f550", "#8892a4", "Pending first check", True)
+    # Recognized real statuses
+    real = {
+        "healthy":  ("\U0001f7e2", "#00d4aa", "Healthy",  False),
+        "warning":  ("\U0001f7e1", "#ffd166", "Warning",  False),
+        "degraded": ("\U0001f534", "#ff4b6e", "Degraded", False),
+    }
+    if overall in real:
+        return real[overall]
+    return ("\U0001f550", "#8892a4", "Pending first check", True)
 
 
 def _normalize_portfolio_columns(df):
@@ -790,9 +825,8 @@ with tab_compare:
                 row["Sharpe (ann.)"] = "—"
 
             row["Runs"] = len(dec_h)
-            health_status = (d["health"] or {}).get("overall_status", "—")
-            badge = {"healthy": "🟢", "warning": "🟡", "degraded": "🔴"}.get(health_status, "⚪")
-            row["Health"] = f"{badge} {health_status}"
+            icon, _, label, _ = _interpret_health(d.get("health") or {})
+            row["Health"] = f"{icon} {label}"
             summary_rows.append(row)
 
         if summary_rows:
@@ -1598,19 +1632,21 @@ with tab_health:
     port_all = data.get("portfolio", pd.DataFrame())
 
     # ── Header status banner ──
-    overall = health.get("overall_status", "unknown")
-    status_colors = {"healthy": "#00d4aa", "warning": "#ffd166", "degraded": "#ff4b6e", "unknown": "#8892a4"}
-    status_icons  = {"healthy": "✅", "warning": "⚠️", "degraded": "🚨", "unknown": "❓"}
-    sc = status_colors.get(overall, "#8892a4")
-    si = status_icons.get(overall, "❓")
+    icon, sc, label, is_pending = _interpret_health(health or {})
+    last_checked = (health or {}).get("computed_at", "")
+    last_checked_str = last_checked[:19].replace("T", " ") if last_checked else "Never"
+    n_dec = (health or {}).get("n_decisions") or 0
+    subline = (
+        f"Awaiting more trading data ({n_dec} of 5 runs required for first check)"
+        if is_pending else
+        f"Last checked: {last_checked_str} UTC  |  "
+        f"Lookback: {(health or {}).get('lookback_days', 63)} days"
+    )
 
     st.markdown(f"""
     <div style="background:{sc}22; border:2px solid {sc}; border-radius:12px; padding:20px 24px; margin-bottom:20px;">
-        <span style="font-size:24px; font-weight:700; color:{sc};">{si} Model Status: {overall.upper()}</span>
-        <div style="color:#8892a4; font-size:13px; margin-top:6px;">
-            Last checked: {health.get('computed_at', 'Never')[:19].replace('T',' ')} UTC
-            &nbsp;|&nbsp; Lookback: {health.get('lookback_days', 63)} days
-        </div>
+        <span style="font-size:24px; font-weight:700; color:{sc};">{icon} Model Status: {label}</span>
+        <div style="color:#8892a4; font-size:13px; margin-top:6px;">{subline}</div>
     </div>
     """, unsafe_allow_html=True)
 
