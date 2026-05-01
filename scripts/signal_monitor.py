@@ -45,6 +45,30 @@ LOG_DIR = resolve_log_dir()
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _to_utc_ts(value):
+    """Coerce a value (Series or scalar) to tz-aware UTC datetime/timestamp.
+
+    Handles three failure modes that pd.to_datetime(..., utc=True) chokes on:
+      1. Already tz-aware Timestamp/Series  — newer pandas refuses utc=True on these
+      2. Underscore-separated formats (Model C writes '2026-05-01_15:08:50')
+      3. Mixed format Series                — uses errors='coerce' to drop bad rows
+
+    Always returns tz-aware UTC.
+    """
+    import pandas as _pd
+    if isinstance(value, _pd.Series):
+        s = value.astype(str).str.strip().str.replace("_", "T", regex=False)
+        out = _pd.to_datetime(s, utc=True, errors="coerce")
+        return out
+    # scalar path
+    if isinstance(value, _pd.Timestamp):
+        if value.tz is None:
+            return value.tz_localize("UTC")
+        return value.tz_convert("UTC")
+    s = str(value).strip().replace("_", "T")
+    return _pd.to_datetime(s, utc=True, errors="coerce")
+
+
 def safe_float(v, default=0.0):
     try:
         return float(v) if np.isfinite(float(v)) else default
@@ -102,7 +126,7 @@ def load_csv_safe(path):
             return pd.DataFrame()
         df = pd.read_csv(p)
         if "timestamp_utc" in df.columns:
-            df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+            df["timestamp_utc"] = _to_utc_ts(df["timestamp_utc"])
         return df
     except Exception:
         return pd.DataFrame()
@@ -144,7 +168,7 @@ def compute_health(decisions, portfolio, lookback_days=63):
 
     # ── Days since last run ──
     if not decisions.empty and "timestamp_utc" in decisions.columns:
-        last_ts = pd.to_datetime(decisions["timestamp_utc"].max(), utc=True)
+        last_ts = _to_utc_ts(decisions["timestamp_utc"].max())
         days_since = (now - last_ts).total_seconds() / 86400
         status["days_since_last_run"] = round(days_since, 1)
         if days_since > 5:
@@ -194,7 +218,7 @@ def compute_health(decisions, portfolio, lookback_days=63):
     portfolio_rets_30 = pd.Series(dtype=float)
     if not portfolio.empty and "timestamp_utc" in portfolio.columns and "portfolio_value" in portfolio.columns:
         port = portfolio.copy()
-        port["timestamp_utc"] = pd.to_datetime(port["timestamp_utc"], utc=True)
+        port["timestamp_utc"] = _to_utc_ts(port["timestamp_utc"])
         port = port.sort_values("timestamp_utc").drop_duplicates("timestamp_utc")
         port = port.set_index("timestamp_utc")["portfolio_value"].astype(float)
 
@@ -273,13 +297,13 @@ def write_signal_history(decisions, portfolio):
     if "timestamp_utc" not in df.columns:
         return
 
-    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+    df["timestamp_utc"] = _to_utc_ts(df["timestamp_utc"])
     df = df.sort_values("timestamp_utc").reset_index(drop=True)
 
     # Attach portfolio value changes if available
     if not portfolio.empty and "timestamp_utc" in portfolio.columns and "portfolio_value" in portfolio.columns:
         port = portfolio.copy()
-        port["timestamp_utc"] = pd.to_datetime(port["timestamp_utc"], utc=True)
+        port["timestamp_utc"] = _to_utc_ts(port["timestamp_utc"])
         port = port.sort_values("timestamp_utc").drop_duplicates("timestamp_utc")
         port["daily_return"] = port["portfolio_value"].astype(float).pct_change()
         df = pd.merge_asof(
