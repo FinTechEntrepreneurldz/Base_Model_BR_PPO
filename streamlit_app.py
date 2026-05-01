@@ -1655,7 +1655,7 @@ with tab_health:
     if alerts:
         for alert in alerts:
             st.warning(alert)
-    elif overall == "healthy":
+    elif label == "Healthy":
         st.success("No alerts. The model is performing as expected.")
 
     if health.get("training_recommended"):
