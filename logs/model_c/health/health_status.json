@@ -1,9 +1,9 @@
 {
-  "computed_at": "2026-05-01T22:27:01.621926+00:00",
+  "computed_at": "2026-05-01T22:40:01.727906+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
-    "Central monitor failed: AttributeError: 'NaTType' object has no attribute 'normalize'"
+    "Central monitor failed: ValueError: Cannot pass a datetime or Timestamp with tzinfo with the tz parameter. Use tz_convert instead."
   ],
   "n_decisions": 0,
   "computed_by": "central_health_monitor",
