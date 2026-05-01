@@ -49,3 +49,12 @@ models:
     branch: "main"
     enabled: true
     color: "#ff6b00"
+
+  - id: model_c
+    name: "MLP_alpha 130/30 (v3 LLM-augmented features)"
+    description: "Sector-neutral 130/30 from quarterly_pipeline_llm. Test Sharpe 2.18 (146d OOS, t-stat 1.66)."
+    repo: "FinTechEntrepreneurldz/Model_C_Paper_Trading"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#a855f7"
