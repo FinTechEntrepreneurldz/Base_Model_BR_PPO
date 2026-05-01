@@ -62,9 +62,10 @@ def _fetch_csv_url(url: str, timeout: int = 30) -> pd.DataFrame:
             return pd.DataFrame()
         df = pd.read_csv(io.StringIO(r.text))
         if "timestamp_utc" in df.columns:
-            df["timestamp_utc"] = pd.to_datetime(
-                df["timestamp_utc"], utc=True, errors="coerce"
-            )
+            # Some paper traders write underscore-separated timestamps
+            # (e.g. "2026-05-01_15:08:50") instead of ISO 8601 "T".  Normalize.
+            s = df["timestamp_utc"].astype(str).str.strip().str.replace("_", "T", regex=False)
+            df["timestamp_utc"] = pd.to_datetime(s, utc=True, errors="coerce")
         return df
     except Exception as exc:
         print(f"  fetch failed for {url}: {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -92,18 +93,17 @@ def _load_local_logs(model: dict):
     portfolio = pd.DataFrame()
     dec_path = base / "decisions" / "decisions.csv"
     port_path = base / "portfolio" / "portfolio.csv"
+    def _ts(col):
+        s = col.astype(str).str.strip().str.replace("_", "T", regex=False)
+        return pd.to_datetime(s, utc=True, errors="coerce")
     if dec_path.exists():
         decisions = pd.read_csv(dec_path)
         if "timestamp_utc" in decisions.columns:
-            decisions["timestamp_utc"] = pd.to_datetime(
-                decisions["timestamp_utc"], utc=True, errors="coerce"
-            )
+            decisions["timestamp_utc"] = _ts(decisions["timestamp_utc"])
     if port_path.exists():
         portfolio = pd.read_csv(port_path)
         if "timestamp_utc" in portfolio.columns:
-            portfolio["timestamp_utc"] = pd.to_datetime(
-                portfolio["timestamp_utc"], utc=True, errors="coerce"
-            )
+            portfolio["timestamp_utc"] = _ts(portfolio["timestamp_utc"])
     return decisions, portfolio
 
 

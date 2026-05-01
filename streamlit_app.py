@@ -214,6 +214,18 @@ def _model_logs_url(model: dict, relpath: str) -> str | None:
     return f"{RAW_BASE}/{repo}/{branch}/{logs_path}/{relpath}"
 
 
+def _parse_timestamp_column(s):
+    """Robust timestamp parser that handles multiple formats different paper-traders
+    happen to write:
+      - Standard ISO 8601:        2026-05-01T15:08:50.123456+00:00
+      - Underscore separator:     2026-05-01_15:08:50          (Model C uses this)
+      - Date-only:                2026-05-01
+    Returns a UTC-tz-aware DatetimeIndex; unparseable rows become NaT.
+    """
+    s2 = s.astype(str).str.strip().str.replace("_", "T", regex=False)
+    return pd.to_datetime(s2, utc=True, errors="coerce")
+
+
 @st.cache_data(ttl=120, show_spinner=False)
 def _load_csv_url(url: str) -> pd.DataFrame:
     """Fetch a CSV from a URL via requests (more reliable than pd.read_csv on
@@ -232,7 +244,7 @@ def _load_csv_url(url: str) -> pd.DataFrame:
             return pd.DataFrame()
         df = pd.read_csv(io.StringIO(r.text))
         if "timestamp_utc" in df.columns:
-            df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True, errors="coerce")
+            df["timestamp_utc"] = _parse_timestamp_column(df["timestamp_utc"])
         return df
     except Exception:
         return pd.DataFrame()
