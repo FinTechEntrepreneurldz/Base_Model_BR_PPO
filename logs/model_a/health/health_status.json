@@ -1,11 +1,13 @@
 {
-  "computed_at": "2026-05-01T22:40:01.189683+00:00",
+  "computed_at": "2026-05-01T22:46:21.168927+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
-    "Central monitor failed: ValueError: Cannot pass a datetime or Timestamp with tzinfo with the tz parameter. Use tz_convert instead."
+    "Central monitor failed: ValueError: Cannot pass a datetime or Timestamp with tzinfo with the tz parameter. Use tz_convert instead.",
+    "Top frame: File \"/home/runner/work/Base_Model_BR_PPO/Base_Model_BR_PPO/scripts/signal_monitor.py\", line 243, in compute_health"
   ],
   "n_decisions": 0,
   "computed_by": "central_health_monitor",
-  "source_repo": "FinTechEntrepreneurldz/Base_Model_BR_PPO"
+  "source_repo": "FinTechEntrepreneurldz/Base_Model_BR_PPO",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/Base_Model_BR_PPO/Base_Model_BR_PPO/scripts/central_health_monitor.py\", line 190, in main\n    health = compute_health(decisions, portfolio,\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/Base_Model_BR_PPO/Base_Model_BR_PPO/scripts/signal_monitor.py\", line 243, in compute_health\n    cutoff_30 = pd.Timestamp(now - timedelta(days=30), tz=\"UTC\")\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/tslibs/timestamps.pyx\", line 2728, in pandas._libs.tslibs.timestamps.Timestamp.__new__\nValueError: Cannot pass a datetime or Timestamp with tzinfo with the tz parameter. Use tz_convert instead.\n"
 }
