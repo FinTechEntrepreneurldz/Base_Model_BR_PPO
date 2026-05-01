@@ -258,12 +258,33 @@ def load_model_health(model: dict) -> dict:
     return _load_health_status(REPO_ROOT / logs_path)
 
 
+def _normalize_portfolio_columns(df):
+    """Guarantee a `portfolio_value` column regardless of source schema.
+
+    Different paper traders use different column names for the equity series:
+      - Model A (Base_Model_BR_PPO): writes 'portfolio_value'
+      - Model B / Model C (separate repos): writes 'equity'
+    The dashboard expects 'portfolio_value' everywhere, so we alias here.
+    """
+    import pandas as _pd
+    if df is None or not hasattr(df, "columns") or df.empty:
+        return df
+    if "portfolio_value" in df.columns:
+        return df
+    for alt in ("equity", "account_value", "total_equity"):
+        if alt in df.columns:
+            df = df.copy()
+            df["portfolio_value"] = _pd.to_numeric(df[alt], errors="coerce")
+            return df
+    return df
+
+
 def load_all_for_model(model: dict) -> dict:
     """Mirror of load_all() but for a model dict (works across repos)."""
     return {
         "decisions":        load_model_csv(model, "decisions/decisions.csv"),
         "latest_decision":  load_model_csv(model, "decisions/latest_decision.csv"),
-        "portfolio":        load_model_csv(model, "portfolio/portfolio.csv"),
+        "portfolio":        _normalize_portfolio_columns(load_model_csv(model, "portfolio/portfolio.csv")),
         "target_weights":   load_model_csv(model, "target_weights/latest_target_weights.csv"),
         "tw_history":       load_model_csv(model, "target_weights/target_weights.csv"),
         "positions":        load_model_csv(model, "positions/latest_positions.csv"),
@@ -659,7 +680,7 @@ with tab_compare:
                 "name":      m.get("name", mid),
                 "color":     m.get("color", "#4c9eff"),
                 "model":     m,
-                "portfolio": load_model_csv(m, "portfolio/portfolio.csv"),
+                "portfolio": _normalize_portfolio_columns(load_model_csv(m, "portfolio/portfolio.csv")),
                 "decisions": load_model_csv(m, "decisions/decisions.csv"),
                 "health":    load_model_health(m),
             }
