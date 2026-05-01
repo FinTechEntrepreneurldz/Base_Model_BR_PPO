@@ -240,7 +240,7 @@ def compute_health(decisions, portfolio, lookback_days=63):
     # ── Benchmark comparison ──
     spy_rets = fetch_benchmark_returns("SPY", days=30)
     if not spy_rets.empty:
-        cutoff_30 = pd.Timestamp(now - timedelta(days=30), tz="UTC")
+        cutoff_30 = pd.Timestamp(now - timedelta(days=30))  # `now` is already tz-aware UTC
         spy_30 = spy_rets[spy_rets.index >= cutoff_30]
         if len(spy_30) >= 10:
             spy_ret_30 = compound_return(spy_30)
