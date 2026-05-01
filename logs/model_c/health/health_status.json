@@ -1,0 +1,11 @@
+{
+  "computed_at": "2026-05-01T22:27:01.621926+00:00",
+  "lookback_days": 63,
+  "overall_status": "unknown",
+  "alerts": [
+    "Central monitor failed: AttributeError: 'NaTType' object has no attribute 'normalize'"
+  ],
+  "n_decisions": 0,
+  "computed_by": "central_health_monitor",
+  "source_repo": "FinTechEntrepreneurldz/Model_C_Paper_Trading"
+}

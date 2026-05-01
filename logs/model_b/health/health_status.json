@@ -1,5 +1,5 @@
 {
-  "computed_at": "2026-05-01T22:27:00.659376+00:00",
+  "computed_at": "2026-05-01T22:27:01.205509+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
@@ -7,5 +7,5 @@
   ],
   "n_decisions": 0,
   "computed_by": "central_health_monitor",
-  "source_repo": "FinTechEntrepreneurldz/Base_Model_BR_PPO"
+  "source_repo": "FinTechEntrepreneurldz/Model_B_Paper_Trading"
 }
