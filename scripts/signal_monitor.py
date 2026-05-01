@@ -109,7 +109,14 @@ def fetch_benchmark_returns(ticker="SPY", days=90):
         if isinstance(closes, pd.DataFrame):
             closes = closes.iloc[:, 0]
         rets = closes.pct_change().dropna()
-        rets.index = pd.to_datetime(rets.index)
+        # Coerce to tz-aware UTC so downstream comparisons against tz-aware
+        # cutoff Timestamps don't raise TypeError on naive vs aware.
+        idx = pd.to_datetime(rets.index)
+        if getattr(idx, "tz", None) is None:
+            idx = idx.tz_localize("UTC")
+        else:
+            idx = idx.tz_convert("UTC")
+        rets.index = idx
         return rets
     except Exception:
         return pd.Series(dtype=float)
@@ -240,7 +247,12 @@ def compute_health(decisions, portfolio, lookback_days=63):
     # ── Benchmark comparison ──
     spy_rets = fetch_benchmark_returns("SPY", days=30)
     if not spy_rets.empty:
-        cutoff_30 = pd.Timestamp(now - timedelta(days=30))  # `now` is already tz-aware UTC
+        cutoff_dt = now - timedelta(days=30)
+        # Belt-and-suspenders: make sure cutoff is tz-aware UTC.  `now` is
+        # tz-aware (created with timezone.utc above) so subtracting timedelta
+        # preserves that, but we cast explicitly to satisfy mypy and to make
+        # the comparison contract obvious to future readers.
+        cutoff_30 = pd.Timestamp(cutoff_dt).tz_convert("UTC") if pd.Timestamp(cutoff_dt).tz else pd.Timestamp(cutoff_dt).tz_localize("UTC")
         spy_30 = spy_rets[spy_rets.index >= cutoff_30]
         if len(spy_30) >= 10:
             spy_ret_30 = compound_return(spy_30)
