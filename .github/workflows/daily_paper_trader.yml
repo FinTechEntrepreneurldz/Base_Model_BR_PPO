@@ -47,10 +47,24 @@ jobs:
           with open("models.yaml") as f:
               data = yaml.safe_load(f)
           only = os.environ.get("ONLY_MODEL", "").strip()
-          enabled = [m for m in data["models"] if m.get("enabled", True)]
+          # Only trade models that live in THIS repo (or have no `repo` field).
+          # Models B and C live in separate repos with their own daily workflows
+          # and are explicitly skipped here so the matrix doesn't try to trade
+          # them (and crash on missing `environment` field).
+          this_repo = "FinTechEntrepreneurldz/Base_Model_BR_PPO"
+          enabled = [
+              m for m in data["models"]
+              if m.get("enabled", True)
+              and (not m.get("repo") or m["repo"] == this_repo)
+          ]
           if only:
               enabled = [m for m in enabled if m["id"] == only]
-          rows = [{"id": m["id"], "environment": m["environment"]} for m in enabled]
+          # Each model in this repo MUST declare its own `environment` for
+          # GitHub Environment-scoped Alpaca secrets.
+          rows = [
+              {"id": m["id"], "environment": m.get("environment") or m["id"]}
+              for m in enabled
+          ]
           print(f"matrix={json.dumps({'include': rows})}")
           print(f"count={len(rows)}")
           PY
