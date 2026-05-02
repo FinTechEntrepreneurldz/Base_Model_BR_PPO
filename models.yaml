@@ -58,3 +58,11 @@ models:
     branch: "main"
     enabled: true
     color: "#a855f7"
+  - id: model_d
+    name: "MLP_alpha 130/30 (v4 sharpe3_upgrade)"
+    description: "Sector-neutral 130/30 from quarterly_pipeline_sharpe3_upgrade BEST_MODEL. Test Sharpe 2.02 (147d OOS, t-stat 1.55). Architecturally identical to Model C with newer training cut — high position correlation expected."
+    repo: "FinTechEntrepreneurldz/Model_D_Paper_Trading"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#3b82f6"
