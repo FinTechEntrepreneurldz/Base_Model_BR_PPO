@@ -1,0 +1,24 @@
+{
+  "computed_at": "2026-05-04T16:25:03.001728+00:00",
+  "lookback_days": 63,
+  "overall_status": "unknown",
+  "alerts": [
+    "No decision history found. Cannot evaluate action diversity.",
+    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+  ],
+  "metrics": {},
+  "action_counts": {},
+  "action_entropy": null,
+  "portfolio_sharpe_30d": null,
+  "spy_sharpe_30d": 9.0327,
+  "portfolio_return_30d": null,
+  "spy_return_30d": 0.093994,
+  "n_decisions": 0,
+  "n_unique_actions": 0,
+  "top_action": null,
+  "top_action_pct": null,
+  "days_since_last_run": null,
+  "training_recommended": false,
+  "source_repo": "FinTechEntrepreneurldz/Model_E_Paper_Trading",
+  "computed_by": "central_health_monitor"
+}
