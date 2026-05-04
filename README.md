@@ -2,7 +2,7 @@
 
 Fully automated daily paper trading using **Proximal Policy Optimization (PPO)** agents to dynamically allocate across equity portfolios and ETFs via the Alpaca Paper Trading API. Supports running **multiple models in parallel**, each trading its own Alpaca paper account.
 
----
+--- 
 
 ## Multi-model setup
 
