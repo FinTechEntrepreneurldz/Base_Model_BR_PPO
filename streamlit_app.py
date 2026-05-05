@@ -1292,7 +1292,7 @@ with tab_compare:
     if fig.data:
         chart_layout(
             fig,
-            "Strategy Equity Curves vs Major Market Benchmarks, Starting Value = 100",
+            "",
             height=560,
         )
         fig.update_layout(
