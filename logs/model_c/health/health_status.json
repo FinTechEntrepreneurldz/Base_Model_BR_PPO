@@ -1,5 +1,5 @@
 {
-  "computed_at": "2026-05-04T16:25:01.910052+00:00",
+  "computed_at": "2026-05-05T16:17:07.509093+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
@@ -12,14 +12,14 @@
   },
   "action_entropy": -0.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.0327,
+  "spy_sharpe_30d": 9.6727,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.093994,
+  "spy_return_30d": 0.10335,
   "n_decisions": 2,
   "n_unique_actions": 1,
   "top_action": "rebalance",
   "top_action_pct": 1.0,
-  "days_since_last_run": 3.1,
+  "days_since_last_run": 4.0,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/Model_C_Paper_Trading",
   "computed_by": "central_health_monitor"

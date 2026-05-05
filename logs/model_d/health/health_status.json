@@ -1,21 +1,21 @@
 {
-  "computed_at": "2026-05-04T16:25:02.441493+00:00",
+  "computed_at": "2026-05-05T16:17:08.036133+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
-    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Only 2 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "rebalance": 1,
-    "hold": 1
+    "rebalance": 2,
+    "hold": 2
   },
   "action_entropy": 1.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.0294,
+  "spy_sharpe_30d": 9.6727,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.093973,
-  "n_decisions": 2,
+  "spy_return_30d": 0.10335,
+  "n_decisions": 4,
   "n_unique_actions": 2,
   "top_action": "rebalance",
   "top_action_pct": 0.5,

@@ -1,10 +1,10 @@
 {
-  "computed_at": "2026-05-04T16:25:03.442363+00:00",
+  "computed_at": "2026-05-05T16:17:09.133778+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
     "ACTION LOCK-IN: PPO chose 'mlp_alpha' in 100% of last 1 decisions. Model may be stuck \u2014 consider retraining.",
-    "Only 0 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
@@ -12,14 +12,14 @@
   },
   "action_entropy": -0.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.041,
+  "spy_sharpe_30d": 9.6708,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.094049,
+  "spy_return_30d": 0.103319,
   "n_decisions": 1,
   "n_unique_actions": 1,
   "top_action": "mlp_alpha",
   "top_action_pct": 1.0,
-  "days_since_last_run": 0.1,
+  "days_since_last_run": 1.1,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/v10-trader",
   "computed_by": "central_health_monitor"
