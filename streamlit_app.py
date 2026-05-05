@@ -1182,59 +1182,166 @@ tab_compare, tab_overview, tab_perf, tab_portfolio, tab_orders, tab_history, tab
 with tab_compare:
     section_header(
         "Model Comparison",
-        "Side by side normalized equity curves for every enabled strategy in the model registry.",
+        "Side by side normalized equity curves for every enabled strategy, benchmarked against major U.S. market indices.",
     )
 
-    if len(registry) <= 1:
-        st.info(
-            "Only one model is currently registered. Add more enabled models to models.yaml to activate cross-model comparison."
-        )
-    else:
-        fig = go.Figure()
-        summary_rows = []
+    benchmark_map = {
+        "S&P 500": {"ticker": "SPY", "color": "#ffd166"},
+        "Nasdaq 100": {"ticker": "QQQ", "color": "#a78bfa"},
+        "Dow Jones": {"ticker": "DIA", "color": "#ff4b6e"},
+        "Russell 2000": {"ticker": "IWM", "color": "#f97316"},
+        "Total U.S. Market": {"ticker": "VTI", "color": "#94a3b8"},
+    }
 
-        for model in registry:
-            mid = model["id"]
-            mname = model.get("name", mid)
-            color = model.get("color", PALETTE["blue"])
-            mdata = load_all_for_model(model)
-            mport = mdata.get("portfolio", pd.DataFrame())
-            s = get_portfolio_series(mport)
+    fig = go.Figure()
+    summary_rows = []
+    portfolio_start_dates = []
+    portfolio_end_dates = []
 
-            if len(s) >= 2:
-                norm = s / s.iloc[0] * 100.0
+    for model in registry:
+        mid = model["id"]
+        mname = model.get("name", mid)
+        color = model.get("color", PALETTE["blue"])
+        mdata = load_all_for_model(model)
+        mport = mdata.get("portfolio", pd.DataFrame())
+        s = get_portfolio_series(mport)
+
+        if len(s) >= 2:
+            s = s.sort_index()
+            portfolio_start_dates.append(pd.to_datetime(s.index.min()).date())
+            portfolio_end_dates.append(pd.to_datetime(s.index.max()).date())
+
+            norm = s / s.iloc[0] * 100.0
+
+            fig.add_trace(
+                go.Scatter(
+                    x=norm.index,
+                    y=norm.values,
+                    mode="lines",
+                    name=mname,
+                    line=dict(width=4, color=color),
+                    hovertemplate=f"{mname}<br>Date=%{{x}}<br>Value=%{{y:.2f}}<extra></extra>",
+                )
+            )
+
+            r = s.pct_change().dropna()
+            p = compute_perf_stats(r)
+
+            summary_rows.append(
+                {
+                    "Asset": mname,
+                    "Type": "Strategy",
+                    "Latest Value": fmt_dollars(s.iloc[-1]),
+                    "Total Return": fmt_pct_signed(s.iloc[-1] / s.iloc[0] - 1.0),
+                    "Sharpe": fmt_num(p.get("sharpe"), 2),
+                    "Max Drawdown": fmt_pct_signed(p.get("max_dd")),
+                    "Observations": p.get("n_days", 0),
+                }
+            )
+
+    if portfolio_start_dates:
+        benchmark_start = min(portfolio_start_dates).strftime("%Y-%m-%d")
+        benchmark_end = None
+        if portfolio_end_dates:
+            benchmark_end = max(portfolio_end_dates).strftime("%Y-%m-%d")
+
+        for bench_name, bench_info in benchmark_map.items():
+            ticker = bench_info["ticker"]
+            color = bench_info["color"]
+
+            bench_rets = fetch_benchmark_returns(
+                ticker=ticker,
+                start=benchmark_start,
+                end=benchmark_end,
+            )
+
+            if bench_rets is not None and len(bench_rets) > 0:
+                bench_index = (1.0 + bench_rets).cumprod() * 100.0
+                bench_index = _to_date_index(bench_index)
+
                 fig.add_trace(
                     go.Scatter(
-                        x=norm.index,
-                        y=norm.values,
+                        x=bench_index.index,
+                        y=bench_index.values,
                         mode="lines",
-                        name=mname,
-                        line=dict(width=3, color=color),
+                        name=f"{bench_name} ({ticker})",
+                        line=dict(
+                            width=2.4,
+                            color=color,
+                            dash="dash",
+                        ),
+                        opacity=0.82,
+                        hovertemplate=f"{bench_name} ({ticker})<br>Date=%{{x}}<br>Value=%{{y:.2f}}<extra></extra>",
                     )
                 )
 
-                r = s.pct_change().dropna()
-                p = compute_perf_stats(r)
+                bp = compute_perf_stats(bench_rets)
+
                 summary_rows.append(
                     {
-                        "Model": mname,
-                        "Latest Portfolio": fmt_dollars(s.iloc[-1]),
-                        "Total Return": fmt_pct_signed(s.iloc[-1] / s.iloc[0] - 1.0),
-                        "Sharpe": fmt_num(p.get("sharpe"), 2),
-                        "Max Drawdown": fmt_pct_signed(p.get("max_dd")),
-                        "Observations": p.get("n_days", 0),
+                        "Asset": f"{bench_name} ({ticker})",
+                        "Type": "Benchmark",
+                        "Latest Value": "Index = 100",
+                        "Total Return": fmt_pct_signed(bench_index.iloc[-1] / bench_index.iloc[0] - 1.0),
+                        "Sharpe": fmt_num(bp.get("sharpe"), 2),
+                        "Max Drawdown": fmt_pct_signed(bp.get("max_dd")),
+                        "Observations": bp.get("n_days", 0),
                     }
                 )
 
-        if fig.data:
-            chart_layout(fig, "Normalized Equity Curve, Starting Value = 100", height=500)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("No portfolio history is available for model comparison yet.")
+    if fig.data:
+        chart_layout(
+            fig,
+            "Strategy Equity Curves vs Major Market Benchmarks, Starting Value = 100",
+            height=560,
+        )
+        fig.update_layout(
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#cbd5e1", size=11),
+            )
+        )
+        fig.update_yaxes(title="Normalized Value")
+        st.plotly_chart(fig, use_container_width=True)
 
-        if summary_rows:
-            st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+        st.markdown(
+            """
+            <div class="small-muted">
+            Solid lines represent BR-PPO strategy portfolios. Dashed lines represent benchmark ETFs normalized to the same starting value.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.warning("No portfolio history is available for model comparison yet.")
 
+    if summary_rows:
+        summary_df = pd.DataFrame(summary_rows)
+
+        strategy_rows = summary_df[summary_df["Type"] == "Strategy"]
+        benchmark_rows = summary_df[summary_df["Type"] == "Benchmark"]
+
+        section_header(
+            "Relative Performance Table",
+            "Strategies and benchmarks are normalized for visual comparison. Returns and risk metrics are calculated from available observations.",
+        )
+
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+        if not strategy_rows.empty and not benchmark_rows.empty:
+            st.markdown("#### Benchmark Set Included")
+            st.dataframe(
+                benchmark_rows[["Asset", "Total Return", "Sharpe", "Max Drawdown", "Observations"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+    else:
+        st.info("No strategy or benchmark rows are available yet.")
 
 # =============================================================================
 # TAB 2: EXECUTIVE OVERVIEW
