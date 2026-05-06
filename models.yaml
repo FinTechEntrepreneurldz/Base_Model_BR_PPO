@@ -82,3 +82,11 @@ models:
     branch: "main"
     enabled: true
     color: "#fbbf24"
+  - id: alpha_long_top10_10d
+    name: "Alpha Long Top 10 — 10D Rebalance"
+    description: "Concentrated long-only alpha model from model_0005. Holds top 10 ranked names and rebalances every 10 trading days."
+    repo: "FinTechEntrepreneurldz/alpha__long_top10__rebalance_10d"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#10b981"
