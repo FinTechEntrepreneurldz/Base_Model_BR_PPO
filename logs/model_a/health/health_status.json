@@ -1,24 +1,25 @@
 {
-  "computed_at": "2026-05-06T12:59:26.337822+00:00",
+  "computed_at": "2026-05-06T15:16:22.199431+00:00",
   "lookback_days": 63,
-  "overall_status": "degraded",
+  "overall_status": "warning",
   "alerts": [
-    "ACTION LOCK-IN: PPO chose 'current_ew' in 100% of last 11 decisions. Model may be stuck \u2014 consider retraining.",
+    "Low action diversity: 'current_ew' used in 92% of recent decisions. Monitor closely.",
     "Only 7 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "current_ew": 11
+    "current_ew": 11,
+    "bil_cash": 1
   },
-  "action_entropy": -0.0,
+  "action_entropy": 0.4138,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.4338,
+  "spy_sharpe_30d": 10.1188,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.098402,
-  "n_decisions": 11,
-  "n_unique_actions": 1,
+  "spy_return_30d": 0.110346,
+  "n_decisions": 12,
+  "n_unique_actions": 2,
   "top_action": "current_ew",
-  "top_action_pct": 1.0,
+  "top_action_pct": 0.9167,
   "days_since_last_run": 0.0,
-  "training_recommended": true
+  "training_recommended": false
 }

@@ -1,3 +1,5 @@
 symbol,current_weight,target_weight,delta_weight,notional,side,submitted,order_id,status,timestamp_utc
 RSP,0.0,0.98,0.98,980000.0,buy,True,8e5c237d-8dd8-4c6a-aa55-15b869bdef1b,OrderStatus.ACCEPTED,2026-04-29T05:04:28.795076+00:00
 RSP,0.0,0.98,0.98,980000.0,buy,True,31be91ec-8b0e-49ee-8922-35ec66375258,OrderStatus.PENDING_NEW,2026-04-29T15:15:03.301131+00:00
+RSP,0.9804887357756276,0.0,-0.9804887357756276,1005048.743191,sell,False,,"ERROR: APIError('{""available"":""4897.306481435"",""code"":40310000,""existing_qty"":""4897.306481435"",""held_for_orders"":""0"",""message"":""insufficient qty available for order (requested: 4897.659665708, available: 4897.306481435)"",""symbol"":""RSP""}')",2026-05-06T15:16:20.996449+00:00
+BIL,0.0,0.98,0.98,1004547.7652,buy,True,60c130d6-6cb8-424f-87d6-e2350a9f765a,OrderStatus.PENDING_NEW,2026-05-06T15:16:20.996449+00:00
