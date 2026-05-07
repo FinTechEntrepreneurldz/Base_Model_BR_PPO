@@ -1,2 +1,2 @@
 market_date,variant,action,action_idx,last_action,submit_orders,account_status,account_value,n_target_positions,n_orders_planned,n_orders_submitted,model_path,metadata_path,timestamp_utc
-2026-05-06,V10_BRO_PPO_AllocationAgent,bil_cash,15,current_ew,True,connected,1025048.74,1,2,1,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-06T15:16:20.996449+00:00
+2026-05-06,V10_BRO_PPO_AllocationAgent,current_ew,0,bil_cash,True,connected,1013761.43,1,1,0,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-07T00:11:54.513266+00:00
