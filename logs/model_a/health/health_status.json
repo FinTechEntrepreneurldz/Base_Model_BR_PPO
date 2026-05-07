@@ -1,5 +1,5 @@
 {
-  "computed_at": "2026-05-07T15:18:22.626272+00:00",
+  "computed_at": "2026-05-07T16:31:12.644124+00:00",
   "lookback_days": 63,
   "overall_status": "warning",
   "alerts": [
@@ -13,13 +13,15 @@
   },
   "action_entropy": 0.5665,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 10.4435,
+  "spy_sharpe_30d": 10.0448,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.115705,
+  "spy_return_30d": 0.112269,
   "n_decisions": 15,
   "n_unique_actions": 2,
   "top_action": "current_ew",
   "top_action_pct": 0.8667,
-  "days_since_last_run": 0.0,
-  "training_recommended": false
+  "days_since_last_run": 0.1,
+  "training_recommended": false,
+  "source_repo": "FinTechEntrepreneurldz/Base_Model_BR_PPO",
+  "computed_by": "central_health_monitor"
 }

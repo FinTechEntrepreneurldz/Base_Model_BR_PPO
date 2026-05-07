@@ -1,18 +1,18 @@
 {
-  "computed_at": "2026-05-06T16:22:11.282979+00:00",
+  "computed_at": "2026-05-07T16:31:15.082306+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
     "No decision history found. Cannot evaluate action diversity.",
-    "Only 3 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Only 4 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {},
   "action_entropy": null,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 10.1352,
+  "spy_sharpe_30d": 10.0486,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.11077,
+  "spy_return_30d": 0.112299,
   "n_decisions": 0,
   "n_unique_actions": 0,
   "top_action": null,
