@@ -1,27 +1,24 @@
 {
-  "computed_at": "2026-05-08T16:07:13.028168+00:00",
+  "computed_at": "2026-05-08T22:21:15.856910+00:00",
   "lookback_days": 63,
-  "overall_status": "warning",
+  "overall_status": "healthy",
   "alerts": [
-    "Low action diversity: 'current_ew' used in 72% of recent decisions. Monitor closely.",
     "Only 9 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
     "current_ew": 13,
-    "bil_cash": 5
+    "bil_cash": 6
   },
-  "action_entropy": 0.8524,
+  "action_entropy": 0.8997,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.9437,
+  "spy_sharpe_30d": 9.9721,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.090672,
-  "n_decisions": 18,
+  "spy_return_30d": 0.091138,
+  "n_decisions": 19,
   "n_unique_actions": 2,
   "top_action": "current_ew",
-  "top_action_pct": 0.7222,
-  "days_since_last_run": 0.1,
-  "training_recommended": false,
-  "source_repo": "FinTechEntrepreneurldz/Base_Model_BR_PPO",
-  "computed_by": "central_health_monitor"
+  "top_action_pct": 0.6842,
+  "days_since_last_run": 0.0,
+  "training_recommended": false
 }
