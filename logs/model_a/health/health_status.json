@@ -1,25 +1,25 @@
 {
-  "computed_at": "2026-05-08T02:22:27.897684+00:00",
+  "computed_at": "2026-05-08T11:19:59.670582+00:00",
   "lookback_days": 63,
   "overall_status": "warning",
   "alerts": [
-    "Low action diversity: 'current_ew' used in 81% of recent decisions. Monitor closely.",
+    "Low action diversity: 'current_ew' used in 76% of recent decisions. Monitor closely.",
     "Only 9 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
     "current_ew": 13,
-    "bil_cash": 3
+    "bil_cash": 4
   },
-  "action_entropy": 0.6962,
+  "action_entropy": 0.7871,
   "portfolio_sharpe_30d": null,
   "spy_sharpe_30d": 9.3422,
   "portfolio_return_30d": null,
   "spy_return_30d": 0.082203,
-  "n_decisions": 16,
+  "n_decisions": 17,
   "n_unique_actions": 2,
   "top_action": "current_ew",
-  "top_action_pct": 0.8125,
+  "top_action_pct": 0.7647,
   "days_since_last_run": 0.0,
   "training_recommended": false
 }
