@@ -1,2 +1,3 @@
 symbol,current_weight,target_weight,delta_weight,notional,side,submitted,order_id,status
-RSP,0.9803192741332368,0.0,-0.9803192741332368,1001695.557443,sell,False,,"ERROR: APIError('{""available"":""4897.306481435"",""code"":40310000,""existing_qty"":""4897.306481435"",""held_for_orders"":""0"",""message"":""insufficient qty available for order (requested: 4897.308888237, available: 4897.306481435)"",""symbol"":""RSP""}')"
+RSP,0.9798467161826939,0.0,-0.9798467161826939,993761.431213,sell,True,23d74549-c2da-4474-bad9-c83f285d3b9c,OrderStatus.ACCEPTED
+BIL,0.9909153530359187,0.98,-0.010915353035918729,11070.360982000038,sell,True,143ff693-59de-43ab-b3bd-0ba8d9532951,OrderStatus.ACCEPTED
