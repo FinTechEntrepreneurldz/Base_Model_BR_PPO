@@ -90,3 +90,11 @@ models:
     branch: "main"
     enabled: true
     color: "#10b981"
+  - id: br_ppo_crypto_v5
+    name: "br_ppo_crypto_v5"
+    description: "V5 robust multi-fold BR-PPO equity + crypto allocator. Logs are generated from the dedicated br_ppo_crypto_v5 repo and separate Alpaca paper credentials."
+    repo: "FinTechEntrepreneurldz/br_ppo_crypto_v5"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#14b8a6"
