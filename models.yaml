@@ -98,3 +98,11 @@ models:
     branch: "main"
     enabled: true
     color: "#14b8a6"
+  - id: br_ppo_crypto_v7
+    name: "br_ppo_crypto_v7"
+    description: "V7 Ultimate Yahoo-only Sharpe Factory + BR-PPO ensemble. Uses dedicated repo, dedicated Alpaca credentials, and model-driven PPO ensemble action selection."
+    repo: "FinTechEntrepreneurldz/br_ppo_crypto_v7"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#22c55e"
