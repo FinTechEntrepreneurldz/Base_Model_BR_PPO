@@ -114,3 +114,11 @@ models:
     branch: "main"
     enabled: true
     color: "#f97316"
+ - id: model_f
+    name: "Model F — MLP_alpha 130/30"
+    description: "Model F MLP alpha 130/30 paper trading strategy. Uses artifacts/mlp.joblib, produces 114 target positions, and writes live dashboard logs from Model_F_Paper_Trading."
+    repo: "FinTechEntrepreneurldz/Model_F_Paper_Trading"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#0ea5e9"
