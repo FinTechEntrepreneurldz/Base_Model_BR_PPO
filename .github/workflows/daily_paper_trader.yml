@@ -2,7 +2,7 @@ name: Daily Paper Trader
 
 on:
   schedule:
-    - cron: '35 12 * * 1-5'   # Mon-Fri 12:35 UTC = 8:35 AM ET
+  - cron: "0 11 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:
