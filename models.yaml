@@ -114,3 +114,11 @@ models:
     branch: "main"
     enabled: true
     color: "#f97316"
+  - id: crypto_funding_carry
+    name: "crypto_funding_carry"
+    description: "V17 crypto orthogonal sleeves strategy. Funding-carry dominated HRP allocator with model artifact-driven current-position decisions and dedicated Alpaca paper credentials."
+    repo: "FinTechEntrepreneurldz/crypto_funding_carry"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#06b6d4"
