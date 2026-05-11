@@ -66,14 +66,6 @@ models:
     branch: "main"
     enabled: true
     color: "#3b82f6"
-  - id: model_e
-    name: "BR-PPO V10B Ensemble (Phase 1: disabled)"
-    description: "3-member weighted PPO ensemble (0.50/0.33/0.17) over 23-action discrete allocator. Test Sharpe 1.69, t-stat 1.29 (147d OOS), max DD -8.5%. Beats all 6 equity benchmarks. PHASE 1 STATUS: deployed in disabled mode (heartbeat only). Will not trade until Phase 2 alpha feeders are wired."
-    repo: "FinTechEntrepreneurldz/Model_E_Paper_Trading"
-    logs_path: "logs"
-    branch: "main"
-    enabled: true
-    color: "#ec4899"
   - id: v10_trader
     name: "V10 PPO Ensemble (rank-weighted, monthly cadence)"
     description: "3-member PPO ensemble (rank-weighted 3/6, 2/6, 1/6) trained on V10 state, deployed via separate v10-trader repo. Monthly rebalance cadence. Native ledger format translated to dashboard schema by src/dashboard_adapter.py."
