@@ -2,8 +2,8 @@ name: Daily Paper Trader
 
 on:
   schedule:
-  - cron: "0 09 * * 1-5"   # 5:00 AM EDT
-  - cron: "0 23 * * 1-5"   # 6:00 PM EST
+   - cron: "0 09 * * 1-5"   # 5:00 AM EDT
+   - cron: "0 23 * * 1-5"   # 6:00 PM EST   # 6:00 PM EST
   workflow_dispatch:
     inputs:
       dry_run:
