@@ -1,24 +1,24 @@
 {
-  "computed_at": "2026-05-08T16:07:14.622942+00:00",
+  "computed_at": "2026-05-11T17:16:24.632056+00:00",
   "lookback_days": 63,
   "overall_status": "healthy",
   "alerts": [
-    "Only 5 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Only 8 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "rebalance": 7,
-    "hold": 6
+    "rebalance": 8,
+    "hold": 8
   },
-  "action_entropy": 0.9957,
+  "action_entropy": 1.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.9437,
+  "spy_sharpe_30d": 9.951,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.090672,
-  "n_decisions": 13,
+  "spy_return_30d": 0.087717,
+  "n_decisions": 16,
   "n_unique_actions": 2,
   "top_action": "rebalance",
-  "top_action_pct": 0.5385,
+  "top_action_pct": 0.5,
   "days_since_last_run": 0.1,
   "training_recommended": false,
   "source_repo": "FinTechEntrepreneurldz/Model_D_Paper_Trading",
