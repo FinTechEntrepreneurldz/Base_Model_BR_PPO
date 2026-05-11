@@ -1,27 +1,27 @@
 {
-  "computed_at": "2026-05-11T12:07:13.425659+00:00",
+  "computed_at": "2026-05-11T13:38:37.956812+00:00",
   "lookback_days": 63,
   "overall_status": "degraded",
   "alerts": [
-    "SHARPE LAG: Portfolio Sharpe (4.31) trailing SPY (9.98) by 5.67 over 30 days."
+    "SHARPE LAG: Portfolio Sharpe (4.30) trailing SPY (9.64) by 5.34 over 30 days."
   ],
   "metrics": {
-    "return_gap_30d_vs_spy": -0.064659,
-    "sharpe_gap_30d_vs_spy": -5.6653
+    "return_gap_30d_vs_spy": -0.064615,
+    "sharpe_gap_30d_vs_spy": -5.3381
   },
   "action_counts": {
     "current_ew": 13,
-    "bil_cash": 7
+    "bil_cash": 8
   },
-  "action_entropy": 0.9341,
-  "portfolio_sharpe_30d": 4.3113,
-  "spy_sharpe_30d": 9.9766,
-  "portfolio_return_30d": 0.020938,
-  "spy_return_30d": 0.085597,
-  "n_decisions": 20,
+  "action_entropy": 0.9587,
+  "portfolio_sharpe_30d": 4.3027,
+  "spy_sharpe_30d": 9.6408,
+  "portfolio_return_30d": 0.020899,
+  "spy_return_30d": 0.085514,
+  "n_decisions": 21,
   "n_unique_actions": 2,
   "top_action": "current_ew",
-  "top_action_pct": 0.65,
+  "top_action_pct": 0.619,
   "days_since_last_run": 0.0,
   "training_recommended": true
 }

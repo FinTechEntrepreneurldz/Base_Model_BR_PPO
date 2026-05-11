@@ -1,2 +1,1 @@
-symbol,current_weight,target_weight,delta_weight,notional,side,submitted,order_id,status
-RSP,0.006495279737878022,0.0,-0.006495279737878022,6631.280698,sell,True,9a7a3e34-f1f0-4513-9a39-5030df7ac12c,OrderStatus.PENDING_NEW
+
