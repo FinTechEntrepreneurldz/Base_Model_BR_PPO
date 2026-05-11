@@ -114,11 +114,11 @@ models:
     branch: "main"
     enabled: true
     color: "#0ea5e9"
-  - id: model_g
-    name: "v6_mlp_overlay_v11"
-    description: "v11 V6+MLP equal weight ensemble + v9 portfolio overlays. Blends qsentia_trading V6 alpha basket with Model B 130/30 MLP basket, then applies PIT confidence sizing rolling 252d Sharpe, 15% vol target, and macro regime overlay. Backtest raw blend SR 1.86, expected with overlay ~2.1. Dedicated repo and Alpaca paper credentials."
-    repo: "FinTechEntrepreneurldz/Model_G_Paper_Trading"
-    logs_path: "logs"
-    branch: "main"
-    enabled: true
-    color: "#8b5cf6"
+  - id: v6_mlp_overlay_v11
+      name: "Model G — v6_mlp_overlay_v11"
+      description: "v11 V6+MLP equal weight ensemble + v9 portfolio overlays. Blends qsentia_trading V6 alpha basket with Model B 130/30 MLP basket, then applies PIT confidence sizing rolling 252d Sharpe, 15% vol target, and macro regime overlay. Backtest raw blend SR 1.86, expected with overlay ~2.1. Dedicated repo and Alpaca paper credentials."
+      repo: "FinTechEntrepreneurldz/Model_G_Paper_Trading"
+      logs_path: "logs"
+      branch: "main"
+      enabled: true
+      color: "#8b5cf6"
