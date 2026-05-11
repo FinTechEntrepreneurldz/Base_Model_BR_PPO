@@ -3,6 +3,7 @@ name: Daily Paper Trader
 on:
   schedule:
   - cron: "0 09 * * 1-5"
+  - cron: "0 14 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:
