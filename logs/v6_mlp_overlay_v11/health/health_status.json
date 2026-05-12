@@ -1,25 +1,25 @@
 {
-  "computed_at": "2026-05-11T17:16:29.263603+00:00",
+  "computed_at": "2026-05-12T17:01:34.686323+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
-    "ACTION LOCK-IN: PPO chose 'rebalance' in 100% of last 2 decisions. Model may be stuck \u2014 consider retraining.",
-    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "ACTION LOCK-IN: PPO chose 'rebalance' in 100% of last 3 decisions. Model may be stuck \u2014 consider retraining.",
+    "Only 2 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "rebalance": 2
+    "rebalance": 3
   },
   "action_entropy": -0.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.9316,
+  "spy_sharpe_30d": 7.8897,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.08757,
-  "n_decisions": 2,
+  "spy_return_30d": 0.077738,
+  "n_decisions": 3,
   "n_unique_actions": 1,
   "top_action": "rebalance",
   "top_action_pct": 1.0,
-  "days_since_last_run": 0.7,
+  "days_since_last_run": 0.8,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/Model_G_Paper_Trading",
   "computed_by": "central_health_monitor"
