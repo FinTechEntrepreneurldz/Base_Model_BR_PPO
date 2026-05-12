@@ -1,5 +1,5 @@
 {
-  "computed_at": "2026-05-12T03:30:20.387187+00:00",
+  "computed_at": "2026-05-12T03:34:11.090921+00:00",
   "lookback_days": 63,
   "overall_status": "degraded",
   "alerts": [
@@ -11,17 +11,17 @@
   },
   "action_counts": {
     "current_ew": 13,
-    "bil_cash": 11
+    "bil_cash": 12
   },
-  "action_entropy": 0.995,
+  "action_entropy": 0.9988,
   "portfolio_sharpe_30d": 4.1469,
   "spy_sharpe_30d": 9.9969,
   "portfolio_return_30d": 0.020953,
   "spy_return_30d": 0.08807,
-  "n_decisions": 24,
+  "n_decisions": 25,
   "n_unique_actions": 2,
   "top_action": "current_ew",
-  "top_action_pct": 0.5417,
+  "top_action_pct": 0.52,
   "days_since_last_run": 0.0,
   "training_recommended": true
 }
