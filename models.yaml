@@ -122,3 +122,11 @@ models:
     branch: "main"
     enabled: true
     color: "#8b5cf6"
+  - id: regime_crypto_trader
+    name: "Regime Crypto Trader — V26 Long-Only"
+    description: "V26 regime-gated long-only crypto strategy. Uses Alpaca daily crypto bars, risk-on regime gating, momentum/volatility ranking, and QSentia-compatible paper trading logs. Default notional is 1000000."
+    repo: "FinTechEntrepreneurldz/regime_crypto_trader"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#06b6d4"
