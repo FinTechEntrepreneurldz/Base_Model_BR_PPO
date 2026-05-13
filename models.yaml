@@ -122,3 +122,11 @@ models:
     branch: "main"
     enabled: true
     color: "#06b6d4"
+  - id: brppo_fixed_income_regime
+    name: "BR-PPO Fixed Income Regime"
+    description: "Regime-aware fixed-income BR-PPO allocator using stable-Sharpe cashless-income guardrails. Uses a 1000000 notional, blocks cash-like ETFs as tradable actions, and routes non-fixed-income PPO decisions into eligible bond/income ETF actions."
+    repo: "FinTechEntrepreneurldz/brppo_fixed_income_regime"
+    logs_path: "logs"
+    branch: "main"
+    enabled: true
+    color: "#64748b"
