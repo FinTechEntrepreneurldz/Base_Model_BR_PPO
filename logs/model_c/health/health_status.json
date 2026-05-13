@@ -1,9 +1,9 @@
 {
-  "computed_at": "2026-05-12T17:01:30.857901+00:00",
+  "computed_at": "2026-05-13T17:06:02.805814+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
-    "No trading run in 11 days (expected daily Mon\u2013Fri).",
+    "No trading run in 12 days (expected daily Mon\u2013Fri).",
     "ACTION LOCK-IN: PPO chose 'rebalance' in 100% of last 2 decisions. Model may be stuck \u2014 consider retraining.",
     "Only 0 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
@@ -13,14 +13,14 @@
   },
   "action_entropy": -0.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 7.9009,
+  "spy_sharpe_30d": 9.2011,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.077797,
+  "spy_return_30d": 0.082612,
   "n_decisions": 2,
   "n_unique_actions": 1,
   "top_action": "rebalance",
   "top_action_pct": 1.0,
-  "days_since_last_run": 11.1,
+  "days_since_last_run": 12.1,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/Model_C_Paper_Trading",
   "computed_by": "central_health_monitor"

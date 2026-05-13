@@ -1,25 +1,25 @@
 {
-  "computed_at": "2026-05-12T17:01:32.482779+00:00",
+  "computed_at": "2026-05-13T17:06:04.184834+00:00",
   "lookback_days": 63,
   "overall_status": "warning",
   "alerts": [
-    "Low action diversity: 'hold_until_rebalance' used in 93% of recent decisions. Monitor closely.",
-    "Only 6 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Low action diversity: 'hold_until_rebalance' used in 94% of recent decisions. Monitor closely.",
+    "Only 7 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "hold_until_rebalance": 13,
+    "hold_until_rebalance": 16,
     "alpha_long_top10_rebalance": 1
   },
-  "action_entropy": 0.3712,
+  "action_entropy": 0.3228,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 7.9092,
+  "spy_sharpe_30d": 9.1964,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.077841,
-  "n_decisions": 14,
+  "spy_return_30d": 0.082554,
+  "n_decisions": 17,
   "n_unique_actions": 2,
   "top_action": "hold_until_rebalance",
-  "top_action_pct": 0.9286,
+  "top_action_pct": 0.9412,
   "days_since_last_run": 0.2,
   "training_recommended": false,
   "source_repo": "FinTechEntrepreneurldz/alpha__long_top10__rebalance_10d",

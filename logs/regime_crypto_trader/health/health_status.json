@@ -1,25 +1,25 @@
 {
-  "computed_at": "2026-05-12T17:01:35.195525+00:00",
+  "computed_at": "2026-05-13T17:06:06.981965+00:00",
   "lookback_days": 63,
-  "overall_status": "unknown",
+  "overall_status": "degraded",
   "alerts": [
-    "ACTION LOCK-IN: PPO chose 'risk_gate_off_flat' in 100% of last 2 decisions. Model may be stuck \u2014 consider retraining.",
-    "Only 0 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "ACTION LOCK-IN: PPO chose 'risk_gate_off_flat' in 100% of last 6 decisions. Model may be stuck \u2014 consider retraining.",
+    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "risk_gate_off_flat": 2
+    "risk_gate_off_flat": 6
   },
   "action_entropy": -0.0,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 7.8897,
+  "spy_sharpe_30d": 9.1999,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.077738,
-  "n_decisions": 2,
+  "spy_return_30d": 0.082597,
+  "n_decisions": 6,
   "n_unique_actions": 1,
   "top_action": "risk_gate_off_flat",
   "top_action_pct": 1.0,
-  "days_since_last_run": 0.3,
+  "days_since_last_run": 0.2,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/regime_crypto_trader",
   "computed_by": "central_health_monitor"
