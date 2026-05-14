@@ -186,54 +186,55 @@ def load_metadata():
         except Exception:
             meta = {}
 
-    action_specs = dict(meta.get("action_specs") or DEFAULT_ACTION_SPECS)
+    original_action_specs = dict(meta.get("action_specs") or DEFAULT_ACTION_SPECS)
+    original_action_names = list(meta.get("action_names") or DEFAULT_ACTION_NAMES)
 
-    # Remove any action that allocates to blocked tickers such as BIL.
-    if BLOCKED_TICKERS:
-        action_specs = {
-            action_name: spec
-            for action_name, spec in action_specs.items()
-            if not any(str(stream).upper() in BLOCKED_TICKERS for stream in spec.keys())
-        }
+    # Keep original action_names for PPO index decoding.
+    # Do NOT shrink this list, because the trained PPO outputs indexes from the original action space.
+    tradable_action_specs = {}
 
-    action_names = [
-        action_name
-        for action_name in list(meta.get("action_names") or DEFAULT_ACTION_NAMES)
-        if action_name in action_specs
-    ]
+    for action_name, spec in original_action_specs.items():
+        has_blocked = any(
+            str(stream).upper() in BLOCKED_TICKERS
+            for stream in spec.keys()
+        )
 
-    if not action_names:
-        action_specs = {"current_ew": {"CURRENT_EW": 1.0}}
-        action_names = ["current_ew"]
+        if not has_blocked:
+            tradable_action_specs[action_name] = spec
+
+    if not tradable_action_specs:
+        tradable_action_specs = {"v6_alpha": {"V6_ALPHA": 1.0}}
 
     return {
         "raw": meta,
         "feature_cols": list(meta.get("feature_cols") or DEFAULT_FEATURE_COLS),
-        "action_names": action_names,
-        "action_specs": action_specs,
+
+        # Original PPO action space
+        "action_names": original_action_names,
+        "action_specs": original_action_specs,
+
+        # Tradable, BIL-filtered action space
+        "tradable_action_specs": tradable_action_specs,
+        "blocked_tickers": sorted(BLOCKED_TICKERS),
     }
 
 def choose_fallback_action(metadata):
-    action_specs = metadata.get("action_specs", {})
-    action_names = metadata.get("action_names", [])
+    tradable_specs = metadata.get("tradable_action_specs", {})
+    original_names = metadata.get("action_names", [])
 
     for action_name in AGGRESSIVE_FALLBACK_ACTIONS:
-        if action_name in action_specs and action_name in action_names:
-            return action_name, action_names.index(action_name)
+        if action_name in tradable_specs:
+            action_idx = original_names.index(action_name) if action_name in original_names else -1
+            return action_name, action_idx
 
-    if "v6_alpha" in action_specs and "v6_alpha" in action_names:
-        return "v6_alpha", action_names.index("v6_alpha")
+    for action_name in ["v6_alpha", "v8_blend", "current30_v6_70", "current50_v8_30_qqq20", "qqq", "top_ew", "current_ew"]:
+        if action_name in tradable_specs:
+            action_idx = original_names.index(action_name) if action_name in original_names else -1
+            return action_name, action_idx
 
-    if "v8_blend" in action_specs and "v8_blend" in action_names:
-        return "v8_blend", action_names.index("v8_blend")
-
-    if "qqq" in action_specs and "qqq" in action_names:
-        return "qqq", action_names.index("qqq")
-
-    if "current_ew" in action_specs and "current_ew" in action_names:
-        return "current_ew", action_names.index("current_ew")
-
-    return action_names[0], 0
+    first = list(tradable_specs.keys())[0]
+    action_idx = original_names.index(first) if first in original_names else -1
+    return first, action_idx
 
 def load_model():
     if PPO is None:
@@ -476,11 +477,14 @@ def predict_action(model, obs, metadata):
 
 
 def expand_action_to_target_weights(action_name, metadata, close, volume):
-    action_specs = metadata["action_specs"]
-    if action_name not in action_specs:
-        action_name = "current_ew" if "current_ew" in action_specs else list(action_specs.keys())[0]
+    action_specs = metadata.get("tradable_action_specs", metadata.get("action_specs", {}))
 
-    spec   = action_specs[action_name]
+    if action_name not in action_specs:
+        fallback_action, _ = choose_fallback_action(metadata)
+        print(f"Action {action_name} not tradable. Expanding fallback action {fallback_action}.")
+        action_name = fallback_action
+
+    spec = action_specs[action_name]
     target = pd.Series(dtype=float)
 
     for sleeve, weight in spec.items():
@@ -736,19 +740,25 @@ def run_trading_cycle():
     raw_ppo_action_idx = action_idx
     reroute_reason = ""
     
-    if action_name not in metadata["action_specs"]:
+    raw_spec = metadata.get("action_specs", {}).get(action_name, {})
+    raw_has_blocked_ticker = any(
+        str(stream).upper() in BLOCKED_TICKERS
+        for stream in raw_spec.keys()
+    )
+    
+    if raw_has_blocked_ticker or action_name not in metadata.get("tradable_action_specs", {}):
         fallback_action, fallback_idx = choose_fallback_action(metadata)
-        reroute_reason = f"blocked_or_invalid_action:{action_name}->aggressive_fallback:{fallback_action}"
-        print(f"PPO selected blocked/invalid action {action_name}. Rerouting to aggressive fallback: {fallback_action}")
+        reroute_reason = f"blocked_action:{action_name}->aggressive_fallback:{fallback_action}"
+        print(f"PPO selected blocked action {action_name}. Rerouting to aggressive fallback: {fallback_action}")
         action_name = fallback_action
         action_idx = fallback_idx
 
-    if FORCE_ACTION_NAME:
-        if FORCE_ACTION_NAME not in metadata["action_specs"]:
-            raise ValueError(
-                f"BRPPO_FORCE_ACTION_NAME={FORCE_ACTION_NAME} is not available after blocked ticker filtering. "
-                f"Available actions: {metadata['action_names'][:20]}"
-            )
+   if FORCE_ACTION_NAME:
+    if FORCE_ACTION_NAME not in metadata.get("tradable_action_specs", {}):
+        raise ValueError(
+            f"BRPPO_FORCE_ACTION_NAME={FORCE_ACTION_NAME} is not tradable after blocked ticker filtering. "
+            f"Available tradable actions: {list(metadata.get('tradable_action_specs', {}).keys())[:30]}"
+        )
         print(f"FORCE ACTION OVERRIDE active: {FORCE_ACTION_NAME}")
         action_name = FORCE_ACTION_NAME
         action_idx = metadata["action_names"].index(action_name)
