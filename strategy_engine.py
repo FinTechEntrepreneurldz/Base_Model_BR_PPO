@@ -132,10 +132,7 @@ DEFAULT_ACTION_SPECS = {
     "current50_v6_30_qqq20": {"CURRENT_EW": 0.50, "V6_ALPHA": 0.30, "QQQ": 0.20},
     "current50_v8_30_qqq20": {"CURRENT_EW": 0.50, "V8_BLEND": 0.30, "QQQ": 0.20},
     "current70_qqq30":       {"CURRENT_EW": 0.70, "QQQ": 0.30},
-    "current50_top30_v6_20": {"CURRENT_EW": 0.50, "TOP_EW": 0.30, "V6_ALPHA": 0.20},
-    "spy70_bil30":           {"SPY": 0.70, "BIL": 0.30},
-    "current70_bil30":       {"CURRENT_EW": 0.70, "BIL": 0.30},
-    "bil_cash":              {"BIL": 1.00},
+    "current50_top30_v6_20": {"CURRENT_EW": 0.50, "TOP_EW": 0.30, "V6_ALPHA": 0.20}
 }
 
 DEFAULT_ACTION_NAMES = list(DEFAULT_ACTION_SPECS.keys())
