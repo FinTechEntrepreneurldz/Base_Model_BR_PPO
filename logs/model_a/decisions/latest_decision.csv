@@ -1,2 +1,2 @@
-market_date,variant,action,action_idx,last_action,submit_orders,account_status,account_value,n_target_positions,n_orders_planned,n_orders_submitted,model_path,metadata_path,timestamp_utc
-2026-05-13,V10_BRO_PPO_AllocationAgent,current_ew,0,bil_cash,True,connected,1021173.17,1,2,2,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-14T13:12:24.617419+00:00
+market_date,variant,action,action_idx,raw_ppo_action,raw_ppo_action_idx,reroute_reason,last_action,submit_orders,account_status,account_value,n_target_positions,n_orders_planned,n_orders_submitted,model_path,metadata_path,timestamp_utc
+2026-05-13,V10_BRO_PPO_AllocationAgent,current_ew,0,current_ew,0,,current_ew,True,connected,1021172.07,1,2,2,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-14T13:20:52.785904+00:00
