@@ -1,27 +1,28 @@
 {
-  "computed_at": "2026-05-13T17:06:03.248465+00:00",
+  "computed_at": "2026-05-14T16:55:34.015000+00:00",
   "lookback_days": 63,
   "overall_status": "degraded",
   "alerts": [
-    "SHARPE LAG: Portfolio Sharpe (-0.73) trailing SPY (9.20) by 9.94 over 30 days."
+    "RETURN LAG: Portfolio underperforming SPY by 10.5% over 30 days.",
+    "SHARPE LAG: Portfolio Sharpe (-3.56) trailing SPY (8.91) by 12.47 over 30 days."
   ],
   "metrics": {
-    "return_gap_30d_vs_spy": -0.087584,
-    "sharpe_gap_30d_vs_spy": -9.9366
+    "return_gap_30d_vs_spy": -0.105092,
+    "sharpe_gap_30d_vs_spy": -12.4685
   },
   "action_counts": {
-    "rebalance": 11,
-    "hold": 11
+    "rebalance": 13,
+    "hold": 12
   },
-  "action_entropy": 1.0,
-  "portfolio_sharpe_30d": -0.7343,
-  "spy_sharpe_30d": 9.2023,
-  "portfolio_return_30d": -0.004958,
-  "spy_return_30d": 0.082626,
-  "n_decisions": 22,
+  "action_entropy": 0.9988,
+  "portfolio_sharpe_30d": -3.5593,
+  "spy_sharpe_30d": 8.9092,
+  "portfolio_return_30d": -0.028515,
+  "spy_return_30d": 0.076577,
+  "n_decisions": 25,
   "n_unique_actions": 2,
   "top_action": "rebalance",
-  "top_action_pct": 0.5,
+  "top_action_pct": 0.52,
   "days_since_last_run": 0.2,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/Model_D_Paper_Trading",

@@ -1,26 +1,29 @@
 {
-  "computed_at": "2026-05-13T17:06:03.670822+00:00",
+  "computed_at": "2026-05-14T16:55:34.467765+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
-    "No trading run in 9 days (expected daily Mon\u2013Fri).",
+    "No trading run in 10 days (expected daily Mon\u2013Fri).",
     "ACTION LOCK-IN: PPO chose 'mlp_alpha' in 100% of last 1 decisions. Model may be stuck \u2014 consider retraining.",
-    "Only 9 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "SHARPE LAG: Portfolio Sharpe (0.14) trailing SPY (8.91) by 8.77 over 30 days."
   ],
-  "metrics": {},
+  "metrics": {
+    "return_gap_30d_vs_spy": -0.076268,
+    "sharpe_gap_30d_vs_spy": -8.7679
+  },
   "action_counts": {
     "mlp_alpha": 1
   },
   "action_entropy": -0.0,
-  "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 9.1964,
-  "portfolio_return_30d": null,
-  "spy_return_30d": 0.082554,
+  "portfolio_sharpe_30d": 0.1413,
+  "spy_sharpe_30d": 8.9092,
+  "portfolio_return_30d": 0.000309,
+  "spy_return_30d": 0.076577,
   "n_decisions": 1,
   "n_unique_actions": 1,
   "top_action": "mlp_alpha",
   "top_action_pct": 1.0,
-  "days_since_last_run": 9.1,
+  "days_since_last_run": 10.1,
   "training_recommended": true,
   "source_repo": "FinTechEntrepreneurldz/v10-trader",
   "computed_by": "central_health_monitor"

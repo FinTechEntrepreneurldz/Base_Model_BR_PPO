@@ -1,0 +1,27 @@
+{
+  "computed_at": "2026-05-14T16:55:37.594234+00:00",
+  "lookback_days": 63,
+  "overall_status": "healthy",
+  "alerts": [
+    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+  ],
+  "metrics": {},
+  "action_counts": {
+    "hold_snapshot": 3,
+    "bond_VCSH": 1,
+    "v8_70_bond_BKLN30": 1
+  },
+  "action_entropy": 0.865,
+  "portfolio_sharpe_30d": null,
+  "spy_sharpe_30d": 8.9133,
+  "portfolio_return_30d": null,
+  "spy_return_30d": 0.076635,
+  "n_decisions": 5,
+  "n_unique_actions": 3,
+  "top_action": "hold_snapshot",
+  "top_action_pct": 0.6,
+  "days_since_last_run": 0.2,
+  "training_recommended": false,
+  "source_repo": "FinTechEntrepreneurldz/brppo_fixed_income_regime",
+  "computed_by": "central_health_monitor"
+}
