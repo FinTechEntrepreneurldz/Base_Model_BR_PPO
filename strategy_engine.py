@@ -104,7 +104,7 @@ V6_MAX_NAMES              = env_int("BRPPO_V6_MAX_NAMES", 30)
 # Defaults
 # ============================================================
 
-ETF_TICKERS = ["SPY", "QQQ", "VTI", "RSP", "BIL"]
+ETF_TICKERS = ["SPY", "QQQ", "VTI", "RSP"]
 
 DEFAULT_UNIVERSE = sorted(set([
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "AVGO", "TSLA", "COST",
@@ -364,7 +364,7 @@ def build_stream_returns(close, volume):
     else:
         streams["V8_BLEND"] = streams["V6_ALPHA"]
 
-    for col in ["SPY", "QQQ", "VTI", "RSP", "BIL"]:
+    for col in ["SPY", "QQQ", "VTI", "RSP"]:
         if col not in streams.columns:
             streams[col] = 0.0
 
@@ -450,7 +450,7 @@ def expand_action_to_target_weights(action_name, metadata, close, volume):
                 target.loc["RSP"] = target.get("RSP", 0.0) + weight * 0.50
                 target.loc["QQQ"] = target.get("QQQ", 0.0) + weight * 0.30
 
-        elif sleeve in {"SPY", "QQQ", "VTI", "RSP", "BIL"}:
+        elif sleeve in {"SPY", "QQQ", "VTI", "RSP"}:
             target.loc[sleeve] = target.get(sleeve, 0.0) + weight
 
     if target.empty:
