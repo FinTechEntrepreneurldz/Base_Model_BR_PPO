@@ -34,3 +34,4 @@ timestamp_utc,portfolio_value,action,submit_orders
 2026-05-14T00:12:59.265973+00:00,1021281.47,bil_cash,True
 2026-05-14T11:15:46.191245+00:00,1021172.08,bil_cash,True
 2026-05-14T12:46:25.621963+00:00,1021172.08,bil_cash,True
+2026-05-14T13:12:24.617419+00:00,1021173.17,current_ew,True

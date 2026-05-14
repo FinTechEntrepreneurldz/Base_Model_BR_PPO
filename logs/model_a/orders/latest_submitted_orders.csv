@@ -1,1 +1,3 @@
-
+symbol,current_weight,target_weight,delta_weight,notional,side,submitted,order_id,status
+BIL,0.9799964478091409,0.0,-0.9799964478091409,1000746.079198,sell,True,2d3a2082-3881-4675-a12e-1948c8cd3f59,OrderStatus.PENDING_NEW
+RSP,1.353463095784234e-05,0.98,0.9799864653690421,1000735.885398,buy,True,5b794c46-3c51-4c22-80f4-75052d3b587c,OrderStatus.PENDING_NEW
