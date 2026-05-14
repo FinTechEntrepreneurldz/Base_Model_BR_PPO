@@ -1,5 +1,5 @@
 {
-  "computed_at": "2026-05-14T11:15:47.483408+00:00",
+  "computed_at": "2026-05-14T12:46:26.832417+00:00",
   "lookback_days": 63,
   "overall_status": "degraded",
   "alerts": [
@@ -10,18 +10,18 @@
     "sharpe_gap_30d_vs_spy": -4.4067
   },
   "action_counts": {
-    "bil_cash": 21,
+    "bil_cash": 22,
     "current_ew": 13
   },
-  "action_entropy": 0.9597,
+  "action_entropy": 0.9518,
   "portfolio_sharpe_30d": 3.9048,
   "spy_sharpe_30d": 8.3115,
   "portfolio_return_30d": 0.021172,
   "spy_return_30d": 0.068902,
-  "n_decisions": 34,
+  "n_decisions": 35,
   "n_unique_actions": 2,
   "top_action": "bil_cash",
-  "top_action_pct": 0.6176,
+  "top_action_pct": 0.6286,
   "days_since_last_run": 0.0,
   "training_recommended": true
 }
