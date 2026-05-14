@@ -36,3 +36,4 @@ market_date,variant,action,action_idx,last_action,submit_orders,account_status,a
 2026-05-13,V10_BRO_PPO_AllocationAgent,bil_cash,15,bil_cash,True,connected,1021172.08,1,0,0,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-14T12:46:25.621963+00:00
 2026-05-13,V10_BRO_PPO_AllocationAgent,current_ew,0,bil_cash,True,connected,1021173.17,1,2,2,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-14T13:12:24.617419+00:00
 2026-05-13,V10_BRO_PPO_AllocationAgent,current_ew,0,current_ew,0,,current_ew,True,connected,1021172.07,1,2,2,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-14T13:20:52.785904+00:00
+2026-05-14,V10_BRO_PPO_AllocationAgent,v6_alpha,3,bil_cash,15,blocked_action:bil_cash->aggressive_fallback:v6_alpha,current_ew,True,connected,1021172.07,30,31,30,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-14T13:34:45.009111+00:00
