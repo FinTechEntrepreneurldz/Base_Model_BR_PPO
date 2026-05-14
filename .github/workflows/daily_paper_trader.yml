@@ -24,6 +24,12 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BRPPO_BLOCKED_TICKERS: "BIL"
+  BRPPO_FORCE_ACTION_NAME: ""
+  BRPPO_AGGRESSIVE_FALLBACK_ACTIONS: "v6_alpha,v8_blend,current30_v6_70,current50_v8_30_qqq20,current50_v6_30_qqq20,current70_qqq30,qqq,top_ew,current_ew"
+  BRPPO_REBALANCE_THRESHOLD_WEIGHT: "0.001"
+  BRPPO_MAX_GROSS_EXPOSURE: "1.00"
+  BRPPO_CASH_BUFFER_PCT: "0.01"
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
