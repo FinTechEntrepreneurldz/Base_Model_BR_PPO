@@ -114,6 +114,15 @@ BLOCKED_TICKERS = {
 
 FORCE_ACTION_NAME = os.environ.get("BRPPO_FORCE_ACTION_NAME", "").strip()
 
+AGGRESSIVE_FALLBACK_ACTIONS = [
+    a.strip()
+    for a in os.environ.get(
+        "BRPPO_AGGRESSIVE_FALLBACK_ACTIONS",
+        "v6_alpha,v8_blend,current30_v6_70,current50_v8_30_qqq20,current50_v6_30_qqq20,current70_qqq30,qqq,top_ew,current_ew"
+    ).split(",")
+    if a.strip()
+]
+
 DEFAULT_UNIVERSE = sorted(set([
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "AVGO", "TSLA", "COST",
     "NFLX", "AMD", "ADBE", "CRM", "ORCL", "CSCO", "INTC", "QCOM", "AMAT", "TXN",
@@ -204,6 +213,27 @@ def load_metadata():
         "action_specs": action_specs,
     }
 
+def choose_fallback_action(metadata):
+    action_specs = metadata.get("action_specs", {})
+    action_names = metadata.get("action_names", [])
+
+    for action_name in AGGRESSIVE_FALLBACK_ACTIONS:
+        if action_name in action_specs and action_name in action_names:
+            return action_name, action_names.index(action_name)
+
+    if "v6_alpha" in action_specs and "v6_alpha" in action_names:
+        return "v6_alpha", action_names.index("v6_alpha")
+
+    if "v8_blend" in action_specs and "v8_blend" in action_names:
+        return "v8_blend", action_names.index("v8_blend")
+
+    if "qqq" in action_specs and "qqq" in action_names:
+        return "qqq", action_names.index("qqq")
+
+    if "current_ew" in action_specs and "current_ew" in action_names:
+        return "current_ew", action_names.index("current_ew")
+
+    return action_names[0], 0
 
 def load_model():
     if PPO is None:
