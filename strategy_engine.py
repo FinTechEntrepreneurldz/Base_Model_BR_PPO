@@ -753,12 +753,12 @@ def run_trading_cycle():
         action_name = fallback_action
         action_idx = fallback_idx
 
-   if FORCE_ACTION_NAME:
-    if FORCE_ACTION_NAME not in metadata.get("tradable_action_specs", {}):
-        raise ValueError(
-            f"BRPPO_FORCE_ACTION_NAME={FORCE_ACTION_NAME} is not tradable after blocked ticker filtering. "
-            f"Available tradable actions: {list(metadata.get('tradable_action_specs', {}).keys())[:30]}"
-        )
+    if FORCE_ACTION_NAME:
+        if FORCE_ACTION_NAME not in metadata.get("tradable_action_specs", {}):
+            raise ValueError(
+                f"BRPPO_FORCE_ACTION_NAME={FORCE_ACTION_NAME} is not tradable after blocked ticker filtering. "
+                f"Available tradable actions: {list(metadata.get('tradable_action_specs', {}).keys())[:30]}"
+            )
         print(f"FORCE ACTION OVERRIDE active: {FORCE_ACTION_NAME}")
         action_name = FORCE_ACTION_NAME
         action_idx = metadata["action_names"].index(action_name)
