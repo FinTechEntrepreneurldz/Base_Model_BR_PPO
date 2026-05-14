@@ -106,6 +106,14 @@ V6_MAX_NAMES              = env_int("BRPPO_V6_MAX_NAMES", 30)
 
 ETF_TICKERS = ["SPY", "QQQ", "VTI", "RSP"]
 
+BLOCKED_TICKERS = {
+    t.strip().upper()
+    for t in os.environ.get("BRPPO_BLOCKED_TICKERS", "BIL").split(",")
+    if t.strip()
+}
+
+FORCE_ACTION_NAME = os.environ.get("BRPPO_FORCE_ACTION_NAME", "").strip()
+
 DEFAULT_UNIVERSE = sorted(set([
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "AVGO", "TSLA", "COST",
     "NFLX", "AMD", "ADBE", "CRM", "ORCL", "CSCO", "INTC", "QCOM", "AMAT", "TXN",
@@ -161,6 +169,7 @@ DEFAULT_FEATURE_COLS.extend(["score_std", "score_spread_90_10", "score_top_decil
 
 def load_metadata():
     meta = {}
+
     if METADATA_PATH.exists():
         try:
             with open(METADATA_PATH, "r") as f:
@@ -168,7 +177,7 @@ def load_metadata():
         except Exception:
             meta = {}
 
-        action_specs = dict(meta.get("action_specs") or DEFAULT_ACTION_SPECS)
+    action_specs = dict(meta.get("action_specs") or DEFAULT_ACTION_SPECS)
 
     # Remove any action that allocates to blocked tickers such as BIL.
     if BLOCKED_TICKERS:
