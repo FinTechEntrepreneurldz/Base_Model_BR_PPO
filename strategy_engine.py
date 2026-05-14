@@ -168,11 +168,31 @@ def load_metadata():
         except Exception:
             meta = {}
 
+        action_specs = dict(meta.get("action_specs") or DEFAULT_ACTION_SPECS)
+
+    # Remove any action that allocates to blocked tickers such as BIL.
+    if BLOCKED_TICKERS:
+        action_specs = {
+            action_name: spec
+            for action_name, spec in action_specs.items()
+            if not any(str(stream).upper() in BLOCKED_TICKERS for stream in spec.keys())
+        }
+
+    action_names = [
+        action_name
+        for action_name in list(meta.get("action_names") or DEFAULT_ACTION_NAMES)
+        if action_name in action_specs
+    ]
+
+    if not action_names:
+        action_specs = {"current_ew": {"CURRENT_EW": 1.0}}
+        action_names = ["current_ew"]
+
     return {
-        "raw":          meta,
+        "raw": meta,
         "feature_cols": list(meta.get("feature_cols") or DEFAULT_FEATURE_COLS),
-        "action_names": list(meta.get("action_names") or DEFAULT_ACTION_NAMES),
-        "action_specs": dict(meta.get("action_specs") or DEFAULT_ACTION_SPECS),
+        "action_names": action_names,
+        "action_specs": action_specs,
     }
 
 
@@ -456,6 +476,12 @@ def expand_action_to_target_weights(action_name, metadata, close, volume):
     if target.empty:
         target.loc["RSP"] = 1.0
 
+    if BLOCKED_TICKERS:
+        target = target[~target.index.astype(str).str.upper().isin(BLOCKED_TICKERS)]
+
+    if target.empty:
+        target.loc["RSP"] = 1.0
+
     target = target.groupby(level=0).sum()
     target = target.clip(upper=MAX_POSITION_WEIGHT)
 
@@ -666,6 +692,22 @@ def run_trading_cycle():
     print("Loading PPO model...")
     model = load_model()
     action_name, action_idx = predict_action(model, obs, metadata)
+
+    if action_name not in metadata["action_specs"]:
+        print(f"PPO selected blocked/invalid action {action_name}. Rerouting to current_ew.")
+        action_name = "current_ew" if "current_ew" in metadata["action_specs"] else metadata["action_names"][0]
+        action_idx = metadata["action_names"].index(action_name)
+
+    if FORCE_ACTION_NAME:
+        if FORCE_ACTION_NAME not in metadata["action_specs"]:
+            raise ValueError(
+                f"BRPPO_FORCE_ACTION_NAME={FORCE_ACTION_NAME} is not available after blocked ticker filtering. "
+                f"Available actions: {metadata['action_names'][:20]}"
+            )
+        print(f"FORCE ACTION OVERRIDE active: {FORCE_ACTION_NAME}")
+        action_name = FORCE_ACTION_NAME
+        action_idx = metadata["action_names"].index(action_name)
+
     print(f"PPO action: {action_name} (idx={action_idx})")
 
     target_weights = expand_action_to_target_weights(action_name, metadata, close, volume)
