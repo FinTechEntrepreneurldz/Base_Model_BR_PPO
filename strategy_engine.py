@@ -732,10 +732,16 @@ def run_trading_cycle():
     model = load_model()
     action_name, action_idx = predict_action(model, obs, metadata)
 
+    raw_ppo_action_name = action_name
+    raw_ppo_action_idx = action_idx
+    reroute_reason = ""
+    
     if action_name not in metadata["action_specs"]:
-        print(f"PPO selected blocked/invalid action {action_name}. Rerouting to current_ew.")
-        action_name = "current_ew" if "current_ew" in metadata["action_specs"] else metadata["action_names"][0]
-        action_idx = metadata["action_names"].index(action_name)
+        fallback_action, fallback_idx = choose_fallback_action(metadata)
+        reroute_reason = f"blocked_or_invalid_action:{action_name}->aggressive_fallback:{fallback_action}"
+        print(f"PPO selected blocked/invalid action {action_name}. Rerouting to aggressive fallback: {fallback_action}")
+        action_name = fallback_action
+        action_idx = fallback_idx
 
     if FORCE_ACTION_NAME:
         if FORCE_ACTION_NAME not in metadata["action_specs"]:
@@ -787,6 +793,9 @@ def run_trading_cycle():
         "variant":            "V10_BRO_PPO_AllocationAgent",
         "action":             action_name,
         "action_idx":         action_idx,
+        "raw_ppo_action":     raw_ppo_action_name,
+        "raw_ppo_action_idx": raw_ppo_action_idx,
+        "reroute_reason":     reroute_reason,
         "last_action":        last_action,
         "submit_orders":      SUBMIT_ORDERS,
         "account_status":     account_status,
