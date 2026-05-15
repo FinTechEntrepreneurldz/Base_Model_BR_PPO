@@ -1,20 +1,20 @@
 {
-  "computed_at": "2026-05-15T00:05:53.753238+00:00",
+  "computed_at": "2026-05-15T11:23:54.589254+00:00",
   "lookback_days": 63,
   "overall_status": "degraded",
   "alerts": [
     "No decision history found. Cannot evaluate action diversity.",
-    "SHARPE LAG: Portfolio Sharpe (3.55) trailing SPY (8.31) by 4.76 over 30 days."
+    "SHARPE LAG: Portfolio Sharpe (2.56) trailing SPY (8.31) by 5.76 over 30 days."
   ],
   "metrics": {
-    "return_gap_30d_vs_spy": -0.048027,
-    "sharpe_gap_30d_vs_spy": -4.7626
+    "return_gap_30d_vs_spy": -0.052871,
+    "sharpe_gap_30d_vs_spy": -5.7567
   },
   "action_counts": {},
   "action_entropy": null,
-  "portfolio_sharpe_30d": 3.5491,
+  "portfolio_sharpe_30d": 2.555,
   "spy_sharpe_30d": 8.3117,
-  "portfolio_return_30d": 0.020879,
+  "portfolio_return_30d": 0.016035,
   "spy_return_30d": 0.068906,
   "n_decisions": 0,
   "n_unique_actions": 0,

@@ -1,2 +1,2 @@
 market_date,variant,action,action_idx,raw_ppo_action,raw_ppo_action_idx,reroute_reason,last_action,submit_orders,account_status,account_value,n_target_positions,n_orders_planned,n_orders_submitted,model_path,metadata_path,timestamp_utc
-2026-05-14,V10_BRO_PPO_AllocationAgent,v6_alpha,3,bil_cash,15,blocked_action:bil_cash->aggressive_fallback:v6_alpha,v6_alpha,True,connected,1020879.19,30,3,0,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-15T00:05:52.626105+00:00
+2026-05-14,V10_BRO_PPO_AllocationAgent,v6_alpha,3,bil_cash,15,blocked_action:bil_cash->aggressive_fallback:v6_alpha,v6_alpha,True,connected,1016034.63,30,3,1,artifacts/model_a/agent.zip,artifacts/model_a/metadata.json,2026-05-15T11:23:53.363277+00:00
