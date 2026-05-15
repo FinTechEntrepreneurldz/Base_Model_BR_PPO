@@ -37,7 +37,7 @@
   },
   "br_ppo_crypto_v15": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:06.092349+00:00",
+    "checked_at": "2026-05-15T22:15:28.627370+00:00",
     "decision_text_present": true,
     "fingerprint": "526f0f6534adf1b89f47ec013dd6420e02f66ace2e76ef89a9745f5c5ddf106f",
     "id": "br_ppo_crypto_v15",
@@ -76,7 +76,7 @@
   },
   "br_ppo_crypto_v5": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:04.339492+00:00",
+    "checked_at": "2026-05-15T22:15:27.492187+00:00",
     "decision_text_present": true,
     "fingerprint": "a428bf1bb1f10e6f5086bce3adbe79d06414a9f070107185edd8cf9bbe5638aa",
     "id": "br_ppo_crypto_v5",
@@ -107,7 +107,7 @@
   },
   "br_ppo_crypto_v7": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:05.290082+00:00",
+    "checked_at": "2026-05-15T22:15:28.083354+00:00",
     "decision_text_present": true,
     "fingerprint": "ad9f6b91b663825449ed37736d4a67946c233a23b7a9585edfb3afd823d9b26b",
     "id": "br_ppo_crypto_v7",
@@ -142,7 +142,7 @@
   },
   "brppo_fixed_income_regime": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:08.765240+00:00",
+    "checked_at": "2026-05-15T22:15:31.109233+00:00",
     "decision_text_present": true,
     "fingerprint": "d710e3f151e7071b45725afa69eadf083b8450b3e1d84d76efa2f0a8fa66095f",
     "id": "brppo_fixed_income_regime",
@@ -175,7 +175,7 @@
   },
   "model_a": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:00.083407+00:00",
+    "checked_at": "2026-05-15T22:15:24.419754+00:00",
     "decision_text_present": true,
     "fingerprint": "86cad511401a32e6b011ee9993b11a2ce602151cd330581dd071fa6b75f45e8f",
     "id": "model_a",
@@ -205,7 +205,7 @@
   },
   "model_b": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:01.197600+00:00",
+    "checked_at": "2026-05-15T22:15:24.985094+00:00",
     "decision_text_present": true,
     "fingerprint": "4f78916c4fd5f6baeac709f927052954f7e060d51a56edc575f3b4a52b09b95a",
     "id": "model_b",
@@ -232,7 +232,7 @@
   },
   "model_c": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:02.047100+00:00",
+    "checked_at": "2026-05-15T22:15:25.476572+00:00",
     "decision_text_present": true,
     "fingerprint": "30bd79761697556590aa0acae7cf2ab15b6c0ea2af108e5c05264537f300b51c",
     "id": "model_c",
@@ -255,7 +255,7 @@
   },
   "model_d": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:02.937310+00:00",
+    "checked_at": "2026-05-15T22:15:26.100159+00:00",
     "decision_text_present": true,
     "fingerprint": "4ed50e889fa07d687755b42cf95969c137716e403d6a28332cd443c47fc031a2",
     "id": "model_d",
@@ -278,7 +278,7 @@
   },
   "model_f": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:06.994742+00:00",
+    "checked_at": "2026-05-15T22:15:29.242344+00:00",
     "decision_text_present": true,
     "fingerprint": "5edea87cdb2aa99cad262b63325b135abcac08cde1f538bc85e718b574794f3a",
     "id": "model_f",
@@ -305,7 +305,7 @@
   },
   "regime_crypto_trader": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:07.789923+00:00",
+    "checked_at": "2026-05-15T22:15:30.585345+00:00",
     "decision_text_present": true,
     "fingerprint": "cdb6d9d608d6402c2e99078545d697f953b0a0f1e4aa930d41d81ca3dfe3efba",
     "id": "regime_crypto_trader",
@@ -332,7 +332,7 @@
   },
   "v10_trader": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:04.043849+00:00",
+    "checked_at": "2026-05-15T22:15:26.913602+00:00",
     "decision_text_present": true,
     "fingerprint": "d408ae8ebe0bdfcdab85c096923c9da223f52c210123657452ca13d4596bd076",
     "id": "v10_trader",
@@ -365,7 +365,7 @@
   },
   "v6_mlp_overlay_v11": {
     "branch": "main",
-    "checked_at": "2026-05-15T16:23:07.412518+00:00",
+    "checked_at": "2026-05-15T22:15:29.872735+00:00",
     "decision_text_present": true,
     "fingerprint": "0d3f507934dcce31faa762f0afdf01b4f157293cc12a55274e8e35039582d793",
     "id": "v6_mlp_overlay_v11",
