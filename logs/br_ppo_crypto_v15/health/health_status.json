@@ -1,25 +1,25 @@
 {
-  "computed_at": "2026-05-14T16:55:35.896525+00:00",
+  "computed_at": "2026-05-15T16:31:27.675396+00:00",
   "lookback_days": 63,
   "overall_status": "healthy",
   "alerts": [
-    "Only 4 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Only 5 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "crypto05_alpha35_bil60": 6,
+    "crypto05_alpha35_bil60": 8,
     "crypto10_hrp60_bil30": 5,
-    "crypto15_simplemeta65_bil20": 1
+    "crypto15_simplemeta65_bil20": 2
   },
-  "action_entropy": 0.836,
+  "action_entropy": 0.883,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 8.9133,
+  "spy_sharpe_30d": 6.4435,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.076635,
-  "n_decisions": 12,
+  "spy_return_30d": 0.059241,
+  "n_decisions": 15,
   "n_unique_actions": 3,
   "top_action": "crypto05_alpha35_bil60",
-  "top_action_pct": 0.5,
+  "top_action_pct": 0.5333,
   "days_since_last_run": 0.2,
   "training_recommended": false,
   "source_repo": "FinTechEntrepreneurldz/br_ppo_crypto_v15",

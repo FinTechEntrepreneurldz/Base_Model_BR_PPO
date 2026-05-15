@@ -1,25 +1,26 @@
 {
-  "computed_at": "2026-05-14T16:55:37.594234+00:00",
+  "computed_at": "2026-05-15T16:31:29.102184+00:00",
   "lookback_days": 63,
-  "overall_status": "healthy",
+  "overall_status": "warning",
   "alerts": [
-    "Only 1 portfolio data points in last 30 days. Need \u226510 for Sharpe."
+    "Low action diversity: 'hold_snapshot' used in 75% of recent decisions. Monitor closely.",
+    "Only 2 portfolio data points in last 30 days. Need \u226510 for Sharpe."
   ],
   "metrics": {},
   "action_counts": {
-    "hold_snapshot": 3,
+    "hold_snapshot": 6,
     "bond_VCSH": 1,
     "v8_70_bond_BKLN30": 1
   },
-  "action_entropy": 0.865,
+  "action_entropy": 0.6696,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 8.9133,
+  "spy_sharpe_30d": 6.4396,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.076635,
-  "n_decisions": 5,
+  "spy_return_30d": 0.059219,
+  "n_decisions": 8,
   "n_unique_actions": 3,
   "top_action": "hold_snapshot",
-  "top_action_pct": 0.6,
+  "top_action_pct": 0.75,
   "days_since_last_run": 0.2,
   "training_recommended": false,
   "source_repo": "FinTechEntrepreneurldz/brppo_fixed_income_regime",

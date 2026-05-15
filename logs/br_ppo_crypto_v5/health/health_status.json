@@ -1,5 +1,5 @@
 {
-  "computed_at": "2026-05-14T16:55:34.916197+00:00",
+  "computed_at": "2026-05-15T16:31:26.664785+00:00",
   "lookback_days": 63,
   "overall_status": "unknown",
   "alerts": [
@@ -9,9 +9,9 @@
   "action_counts": {},
   "action_entropy": null,
   "portfolio_sharpe_30d": null,
-  "spy_sharpe_30d": 8.9133,
+  "spy_sharpe_30d": 6.4435,
   "portfolio_return_30d": null,
-  "spy_return_30d": 0.076635,
+  "spy_return_30d": 0.059241,
   "n_decisions": 0,
   "n_unique_actions": 0,
   "top_action": null,
